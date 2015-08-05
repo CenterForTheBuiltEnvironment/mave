@@ -98,7 +98,6 @@ setup(
 
     scripts=[
         'bin/mave-run',
-        'bin/mave-hello',
     ]
 
     # Although 'package_data' is the preferred approach, in some case you may
