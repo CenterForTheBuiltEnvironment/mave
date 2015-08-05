@@ -96,6 +96,11 @@ setup(
         ],
     },
 
+    scripts=[
+        'bin/mave-run',
+        'bin/mave-hello',
+    ]
+
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
@@ -110,4 +115,5 @@ setup(
     #        'mave=mave:main',
     #    ],
     #},
+
 )
