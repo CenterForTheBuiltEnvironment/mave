@@ -17,10 +17,11 @@ from math import sqrt
 from datetime import datetime, timedelta
 from sklearn import preprocessing, cross_validation, metrics
 import trainers
+from holidays import holidays
 
 class Preprocessor(object):
 
-    HOLIDAYS_PICKLE_FILENAME = os.path.join('holidays', 'USFederalHolidays.p')
+    HOLIDAY_KEYS = ['USFederal']
     DATETIME_COLUMN_NAME = 'time.LOCAL'
     HISTORICAL_DATA_COLUMN_NAMES = ['dboatF']
     TARGET_COLUMN_NAMES = ['wbelectricitykWh']
@@ -36,10 +37,10 @@ class Preprocessor(object):
         self.headers, country = self.process_headers()
         input_file.seek(0) # rewind the file so we don't have to open it again
 
-        self.holidays = []
+        self.holidays = set([])
         if country == 'us' and use_holidays:
-            with open(self.HOLIDAYS_PICKLE_FILENAME, 'r') as fp:
-                self.holidays = pickle.load(fp)
+            for key in self.HOLIDAY_KEYS:
+                self.holidays.union(holidays[key])
 
         input_data = np.genfromtxt(input_file, 
                             comments='#', 
@@ -150,7 +151,8 @@ class Preprocessor(object):
             for j in range(1, N+1):
                 new_dt = gap_start + j * interval
                 new_row = np.array([(new_dt,) + (np.nan,) * (row_length - 1)], dtype=data.dtype)
-                print ("-- Missing datetime interval between %s and %s" % (gap_start, gap_end))
+                #TODO: Logs 
+                #print ("-- Missing datetime interval between %s and %s" % (gap_start, gap_end))
                 data = np.append(data, new_row)
                 datetimes = np.append(datetimes, new_dt) 
                 datetimes_ind = np.argsort(datetimes) # returns indices that would sort datetimes
@@ -231,37 +233,30 @@ class ModelAggregator(object):
         dummy_trainer = trainers.DummyTrainer()
         dummy_trainer.train(self.X_s, self.y_s)
         self.models.append(dummy_trainer.model)
-        print "trained dummy"
 
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
         hour_weekday_trainer.train(self.X_s, self.y_s)
         self.models.append(hour_weekday_trainer.model)
-        print "trained hour-weekday"
 
         kneighbors_trainer = trainers.KNeighborsTrainer()
         kneighbors_trainer.train(self.X_s, self.y_s)
         self.models.append(kneighbors_trainer.model)
-        print "trained k-nearest neighbors"
 
         #svr_trainer = trainers.SVRTrainer(search_iterations=0)
         #svr_trainer.train(self.X_s, self.y_s)
         #self.models.append(svr_trainer.model)
-        #print "trained svr"
 
         random_forest_trainer = trainers.RandomForestTrainer(search_iterations=20)
         random_forest_trainer.train(self.X_s, self.y_s)
         self.models.append(random_forest_trainer.model)
-        print "trained random forest"
 
         #gradient_boosting_trainer = trainers.GradientBoostingTrainer(search_iterations=2)
         #gradient_boosting_trainer.train(self.X_s, self.y_s)
         #self.models.append(gradient_boosting_trainer.model)
-        #print "trained gradient boosting"
 
         extra_trees_trainer = trainers.ExtraTreesTrainer(search_iterations=20)
         extra_trees_trainer.train(self.X_s, self.y_s)
         self.models.append(extra_trees_trainer.model)
-        print "trained extra trees"
     
     def score(self):
         y_mean = np.mean(self.y_test_s)
@@ -283,7 +278,7 @@ class ModelAggregator(object):
 
 if __name__=='__main__': 
 
-    f = open('csv/6_P_cbe_02.csv', 'Ur')
+    f = open('data/6_P_cbe_02.csv', 'Ur')
     p0 = Preprocessor(f)
 
     m = ModelAggregator(p0, test_size=0.2)
