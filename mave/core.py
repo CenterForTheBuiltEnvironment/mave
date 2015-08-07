@@ -229,34 +229,47 @@ class ModelAggregator(object):
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
-    def train_all(self):
-        dummy_trainer = trainers.DummyTrainer()
-        dummy_trainer.train(self.X_s, self.y_s)
-        self.models.append(dummy_trainer.model)
-
-        hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
-        hour_weekday_trainer.train(self.X_s, self.y_s)
-        self.models.append(hour_weekday_trainer.model)
-
+    def train_kneighbors(self):
         kneighbors_trainer = trainers.KNeighborsTrainer()
         kneighbors_trainer.train(self.X_s, self.y_s)
         self.models.append(kneighbors_trainer.model)
+        return kneighbors_trainer.model
 
-        #svr_trainer = trainers.SVRTrainer(search_iterations=0)
-        #svr_trainer.train(self.X_s, self.y_s)
-        #self.models.append(svr_trainer.model)
+    def train_svr(self):
+        svr_trainer = trainers.SVRTrainer(search_iterations=0)
+        svr_trainer.train(self.X_s, self.y_s)
+        self.models.append(svr_trainer.model)
+        return svr_trainer.model
 
+    def train_gradient_boosting(self):
+        gradient_boosting_trainer = trainers.GradientBoostingTrainer(search_iterations=2)
+        gradient_boosting_trainer.train(self.X_s, self.y_s)
+        self.models.append(gradient_boosting_trainer.model)
+        return gradient_boosting_trainer.model
+
+    def train_random_forest(self):
         random_forest_trainer = trainers.RandomForestTrainer(search_iterations=20)
         random_forest_trainer.train(self.X_s, self.y_s)
         self.models.append(random_forest_trainer.model)
+        return random_forest_trainer.model
 
-        #gradient_boosting_trainer = trainers.GradientBoostingTrainer(search_iterations=2)
-        #gradient_boosting_trainer.train(self.X_s, self.y_s)
-        #self.models.append(gradient_boosting_trainer.model)
-
+    def train_extra_trees(self):
         extra_trees_trainer = trainers.ExtraTreesTrainer(search_iterations=20)
         extra_trees_trainer.train(self.X_s, self.y_s)
         self.models.append(extra_trees_trainer.model)
+        return extra_trees_trainer.model 
+
+    def train_all(self):
+        self.train_dummy()
+        self.train_hour_weekday()
+        self.train_kneighbors()
+        self.train_random_forest()
+    
+        # These take forever and maybe aren't worth it?
+        #self.train_svr()
+        #self.train_gradient_boosting()
+
+        return self.models
     
     def score(self):
         y_mean = np.mean(self.y_test_s)
