@@ -5,7 +5,7 @@ from mave.core import Preprocessor, ModelAggregator
 class Test(unittest.TestCase):
 
     EPS = 0.001
-    TEST_PATH_1 = "mave/data/6_P_cbe_02.csv"
+    TEST_PATH_1 = "../mave/data/Ex1.csv"
 
     def test_success(self):
         self.assertTrue(True)
@@ -14,21 +14,21 @@ class Test(unittest.TestCase):
         f = open(self.TEST_PATH_1, 'Ur')
         p = Preprocessor(f)
         self.assertTrue(p is not None)
-        self.assertTrue(len(p.X) == 35002)
+        self.assertTrue(len(p.X) == 92055)
         f.close()
 
         f = open(self.TEST_PATH_1, 'Ur')
         p = None
         p = Preprocessor(f, use_holidays=False)
         self.assertTrue(p is not None)
-        self.assertTrue(len(p.X) == 35002)
+        self.assertTrue(len(p.X) == 92055)
         f.close()
         
         f = open(self.TEST_PATH_1, 'Ur')
         p = None
-        p = Preprocessor(f, start_frac=0.1, end_frac=0.8)
+        p = Preprocessor(f, start_frac=0.4, end_frac=0.6)
         self.assertTrue(p is not None)
-        self.assertTrue(len(p.X) == 24501)
+        self.assertTrue(len(p.X) == 18415)
         f.close()
 
     def test_model_aggregator(self):
@@ -41,11 +41,14 @@ class Test(unittest.TestCase):
         self.assertTrue(dummy is not None)
         score = m.score()
         mae = score[3]
-        error = abs(0.88233783891011031 - mae)
+        error = abs(0.89388258838080326 - mae)
         self.assertTrue(error < self.EPS)
 
         m.train_hour_weekday()
         score = m.score()
         mae = score[3]
-        error = abs(0.345048548272 - mae)
+        error = abs(0.33109052903614433 - mae)
         self.assertTrue(error < self.EPS)
+
+if __name__ == '__main__':
+    unittest.main()

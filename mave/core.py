@@ -10,7 +10,7 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-import os, csv, pickle
+import os, csv, pickle, pdb
 import dateutil.parser
 import numpy as np
 from math import sqrt
@@ -291,9 +291,9 @@ class ModelAggregator(object):
 
 if __name__=='__main__': 
 
-    f = open('data/6_P_cbe_02.csv', 'Ur')
-    p0 = Preprocessor(f)
-
+    f = open('data/Ex1.csv', 'Ur')
+    p0 = Preprocessor(f, start_frac= 0.4, end_frac=0.6)
+    pdb.set_trace()
     m = ModelAggregator(p0, test_size=0.2)
     m.train_all()
     print m.score()
