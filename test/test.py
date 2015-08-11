@@ -31,6 +31,16 @@ class Test(unittest.TestCase):
         self.assertTrue(len(p.X) == 18415)
         f.close()
 
+    def test_changepoint_feature(self):
+        f = open(self.TEST_PATH_1, 'Ur')
+        changepoints = [
+            datetime(2012, 1, 29, 13, 15),
+            datetime(2013, 9, 14, 23, 15),
+        ]
+        p = Preprocessor(f, changepoints=changepoints)
+        m = ModelAggregator(p, test_size=0.2)
+        self.assertTrue(m is not None)
+
     def test_model_aggregator(self):
         f = open(self.TEST_PATH_1, 'Ur')
         p = Preprocessor(f)

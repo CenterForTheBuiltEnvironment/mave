@@ -31,6 +31,7 @@ class Preprocessor(object):
                  use_holidays=True,
                  start_frac=0.0,
                  end_frac=1.0,
+                 changepoints=None,
                  ):
 
         self.reader = csv.reader(input_file, delimiter=',')
@@ -67,6 +68,9 @@ class Preprocessor(object):
 
         input_data, self.datetimes = self.interpolate_datetime(input_data, datetimes)
 
+        if changepoints is not None:
+            changepoint_feature = self.get_changepoint_feature(changepoints)
+
         use_month = True if (self.datetimes[0] - self.datetimes[-1]).days > 360 else False
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(self.datetimes, use_month))
@@ -74,6 +78,9 @@ class Preprocessor(object):
         # minute, hour, weekday, holiday, and (month)
 
         input_data, target_column_index = self.append_input_features(input_data, d)
+
+        if changepoints:
+            input_data = np.hstack((input_data, changepoint_feature))
 
         self.X, self.y, self.datetimes = \
                 self.clean_missing_data(input_data, self.datetimes, target_column_index)
@@ -93,8 +100,8 @@ class Preprocessor(object):
 			  match those in the input features array")
 
 	    # split into input and target arrays
-        X, target_data = np.hsplit(d, np.array([target_column_index]))
-
+        target_data = d[:,target_column_index]
+        X = np.hstack( (d[:,:target_column_index], d[:,target_column_index+1:]) )
         return X, target_data, datetimes
 
     def append_input_features(self, data, d0, historical_data_points=0):
@@ -125,7 +132,6 @@ class Preprocessor(object):
         return d, split
 
     def interpolate_datetime(self, data, datetimes):
-
         start = datetimes[0]
         second_val = datetimes[1]
         end = datetimes[-1]
@@ -197,6 +203,18 @@ class Preprocessor(object):
         if use_month: rv += float(dt.month),
         return rv
 
+    def get_changepoint_feature(self, changepoints):
+        # changepoints: list of datetimes where a change occurred
+        N = len(self.datetimes)
+        changepoint_feature = np.zeros(N)
+        changepoints.reverse()
+        for i, cp in enumerate(changepoints):
+            a = np.where( self.datetimes < cp )
+            L = len(a[0])
+            changepoint_feature[:L] = i + 1
+
+        changepoint_feature.shape = (N, 1)
+        return changepoint_feature 
 
 class ModelAggregator(object):
 
@@ -292,8 +310,12 @@ class ModelAggregator(object):
 if __name__=='__main__': 
 
     f = open('data/Ex1.csv', 'Ur')
-    p0 = Preprocessor(f, start_frac= 0.4, end_frac=0.6)
-    pdb.set_trace()
+    changepoints = [
+        datetime(2012, 1, 29, 13, 15),
+        datetime(2013, 9, 14, 23, 15),
+    ]
+    p0 = Preprocessor(f, changepoints=changepoints)
+
     m = ModelAggregator(p0, test_size=0.2)
     m.train_all()
     print m.score()
