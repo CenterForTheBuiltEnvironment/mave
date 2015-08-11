@@ -5,7 +5,7 @@ from mave.core import Preprocessor, ModelAggregator
 class Test(unittest.TestCase):
 
     EPS = 0.001
-    TEST_PATH_1 = "../mave/data/Ex1.csv"
+    TEST_PATH_1 = "./mave/data/Ex1.csv"
 
     def test_success(self):
         self.assertTrue(True)

@@ -47,13 +47,18 @@ setup(
         'Development Status :: 3 - Alpha',
 
         # Indicate who your project is intended for
-        'Intended Audience :: Science/Research',
+        'Classifier: Intended Audience :: Education'
+        'Classifier: Intended Audience :: End Users/Desktop'
+        'Classifier: Intended Audience :: Science/Research'
+        'Classifier: Operating System :: OS Independent'
+        'Classifier: Topic :: Scientific/Engineering :: Information Analysis'
 
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
+        'Programming Language :: Python ',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
@@ -91,8 +96,16 @@ setup(
     # have to be included in MANIFEST.in as well.
     package_data={
         'mave': [
-            'data/6_P_cbe_02.csv',
-            'data/6_P_cbe_03.csv',
+            'data/Ex1.csv',
+            'data/Ex2.csv',
+            'data/Ex3.csv',
+            'data/Ex4.csv',
+            'data/Ex5.csv',
+            'data/Ex6.csv',
+            'data/Ex7.csv',
+            'data/Ex8.csv',
+            'data/Ex9_Predict.csv',
+            'data/Ex9_Baseline.csv'
         ],
     },
 
