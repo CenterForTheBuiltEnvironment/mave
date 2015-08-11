@@ -1,4 +1,4 @@
-import unittest
+import unittest, pdb
 from datetime import datetime
 from mave.core import Preprocessor, ModelAggregator
 
@@ -6,6 +6,7 @@ class Test(unittest.TestCase):
 
     EPS = 0.001
     TEST_PATH_1 = "./mave/data/Ex1.csv"
+    TEST_PATH_6 = "./mave/data/Ex6.csv"
 
     def test_success(self):
         self.assertTrue(True)
@@ -29,6 +30,14 @@ class Test(unittest.TestCase):
         p = Preprocessor(f, start_frac=0.4, end_frac=0.6)
         self.assertTrue(p is not None)
         self.assertTrue(len(p.X) == 18415)
+        f.close()
+        
+    def test_preprocessor_integer_data(self):   
+        f = open(self.TEST_PATH_6, 'Ur')
+        p = None
+        p = Preprocessor(f, start_frac=0.4, end_frac=0.6)
+        self.assertTrue(p is not None)
+        self.assertTrue(len(p.X) == 18418)
         f.close()
 
     def test_changepoint_feature(self):

@@ -64,6 +64,8 @@ class Preprocessor(object):
 
         dtypes = input_data.dtype.descr
         dtypes[0] = dtypes[0][0], '|S16' # force S16 datetimes
+        for i in range(1,len(dtypes)):
+          dtypes[i] = dtypes[i][0], 'f8' # parse other data as float
         input_data = input_data.astype(dtypes)
 
         input_data, self.datetimes = self.interpolate_datetime(input_data, datetimes)
@@ -309,13 +311,13 @@ class ModelAggregator(object):
 
 if __name__=='__main__': 
 
-    f = open('data/Ex1.csv', 'Ur')
+    f = open('data/Ex6.csv', 'Ur')
     changepoints = [
         datetime(2012, 1, 29, 13, 15),
         datetime(2013, 9, 14, 23, 15),
     ]
     p0 = Preprocessor(f, changepoints=changepoints)
-
+    pdb.set_trace()
     m = ModelAggregator(p0, test_size=0.2)
     m.train_all()
     print m.score()
