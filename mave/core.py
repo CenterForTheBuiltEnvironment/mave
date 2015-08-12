@@ -239,13 +239,13 @@ class ModelAggregator(object):
 
     def train_dummy(self):
         dummy_trainer = trainers.DummyTrainer()
-        dummy_trainer.train(self.X_s, self.y_s)
+        dummy_trainer.train(self.X_s, self.y_s,randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
     def train_hour_weekday(self):
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
-        hour_weekday_trainer.train(self.X_s, self.y_s)
+        hour_weekday_trainer.train(self.X_s, self.y_s, randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
