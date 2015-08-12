@@ -110,7 +110,7 @@ setup(
     },
 
     scripts=[
-        'bin/mave-run',
+        'bin/mave',
     ]
 
     # Although 'package_data' is the preferred approach, in some case you may
