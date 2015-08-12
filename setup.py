@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.2',
+    version='0.0.3',
 
     description='Library for Measurement and Verification',
     long_description=long_description,
@@ -47,11 +47,11 @@ setup(
         'Development Status :: 3 - Alpha',
 
         # Indicate who your project is intended for
-        'Classifier: Intended Audience :: Education'
-        'Classifier: Intended Audience :: End Users/Desktop'
-        'Classifier: Intended Audience :: Science/Research'
-        'Classifier: Operating System :: OS Independent'
-        'Classifier: Topic :: Scientific/Engineering :: Information Analysis'
+        'Intended Audience :: Education',
+        'Intended Audience :: End Users/Desktop',
+        'Intended Audience :: Science/Research',
+        'Operating System :: OS Independent',
+        'Topic :: Scientific/Engineering :: Information Analysis',
 
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',
@@ -59,8 +59,6 @@ setup(
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python ',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
     ],
 
