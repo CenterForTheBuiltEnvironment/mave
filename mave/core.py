@@ -31,8 +31,7 @@ class Preprocessor(object):
                  use_holidays=True,
                  start_frac=0.0,
                  end_frac=1.0,
-                 changepoints=None,
-                 start_mode_id=0,
+                 changepoint=None,
                  ):
 
         self.reader = csv.reader(input_file, delimiter=',')
@@ -71,8 +70,10 @@ class Preprocessor(object):
 
         input_data, self.datetimes = self.interpolate_datetime(input_data, datetimes)
 
-        if changepoints is not None:
-            changepoint_feature = self.get_changepoint_feature(changepoints, start_mode_id)
+        if changepoint is not None:
+            self.changepoint_index = self.get_changepoint_index(changepoint)
+        else:
+            self.changepoint_index = None
 
         use_month = True if (self.datetimes[0] - self.datetimes[-1]).days > 360 else False
         vectorized_process_datetime = np.vectorize(self.process_datetime)
@@ -81,9 +82,6 @@ class Preprocessor(object):
         # minute, hour, weekday, holiday, and (month)
 
         input_data, target_column_index = self.append_input_features(input_data, d)
-
-        if changepoints:
-            input_data = np.hstack((input_data, changepoint_feature))
 
         self.X, self.y, self.datetimes = \
                 self.clean_missing_data(input_data, self.datetimes, target_column_index)
@@ -206,22 +204,15 @@ class Preprocessor(object):
         if use_month: rv += float(dt.month),
         return rv
 
-    def get_changepoint_feature(self, changepoints, start_mode_id):
-        # changepoints: list of datetimes where a change occurred
-        N = len(self.datetimes)
-        changepoint_feature = np.ones(N) * start_mode_id
-        for (cp_date, cp_id) in changepoints:
-            a = np.where( self.datetimes >= cp_date )
-            L = a[0][0]
-            changepoint_feature[L:] = cp_id
-
-        changepoint_feature.shape = (N, 1)
-        return changepoint_feature 
+    def get_changepoint_index(self, changepoint):
+        a = np.where( self.datetimes >= changepoint )
+        changepoint_index = a[0][0]
+        return changepoint_index
 
 class ModelAggregator(object):
 
-    def __init__(self, p0, test_size=0.0):
-        self.p0 = p0
+    def __init__(self, preprocessor, test_size=0.0):
+        self.p0 = preprocessor
         X = p0.X
         y = np.ravel(p0.y)
 
@@ -230,7 +221,13 @@ class ModelAggregator(object):
         self.X_s = self.X_standardizer.transform(X)
         self.y_s = self.y_standardizer.transform(y)
 
-        self.X_s, self.X_test_s, self.y_s, self.y_test_s = \
+        if preprocessor.changepoint_index is not None:
+            # split at changepoint
+            self.X_pre_s, self.X_post_s = np.split(self.X_s, preprocessor.changepoint_index)
+            self.y_pre_s, self.y_post_s = np.split(self.y_s, preprocessor.changepoint_index)
+            print len(self.X_s), len(self.X_pre_s)
+        else:
+            self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
                     test_size=test_size, random_state=0)
 
@@ -239,43 +236,43 @@ class ModelAggregator(object):
 
     def train_dummy(self):
         dummy_trainer = trainers.DummyTrainer()
-        dummy_trainer.train(self.X_s, self.y_s,randomized_search=False)
+        dummy_trainer.train(self.X_pre_s, self.y_pre_s,randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
     def train_hour_weekday(self):
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
-        hour_weekday_trainer.train(self.X_s, self.y_s, randomized_search=False)
+        hour_weekday_trainer.train(self.X_pre_s, self.y_pre_s, randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
     def train_kneighbors(self):
         kneighbors_trainer = trainers.KNeighborsTrainer()
-        kneighbors_trainer.train(self.X_s, self.y_s)
+        kneighbors_trainer.train(self.X_pre_s, self.y_pre_s)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self):
         svr_trainer = trainers.SVRTrainer(search_iterations=0)
-        svr_trainer.train(self.X_s, self.y_s)
+        svr_trainer.train(self.X_pre_s, self.y_pre_s)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self):
         gradient_boosting_trainer = trainers.GradientBoostingTrainer(search_iterations=2)
-        gradient_boosting_trainer.train(self.X_s, self.y_s)
+        gradient_boosting_trainer.train(self.X_pre_s, self.y_pre_s)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self):
         random_forest_trainer = trainers.RandomForestTrainer(search_iterations=20)
-        random_forest_trainer.train(self.X_s, self.y_s)
+        random_forest_trainer.train(self.X_pre_s, self.y_pre_s)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self):
         extra_trees_trainer = trainers.ExtraTreesTrainer(search_iterations=20)
-        extra_trees_trainer.train(self.X_s, self.y_s)
+        extra_trees_trainer.train(self.X_pre_s, self.y_pre_s)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
@@ -292,15 +289,15 @@ class ModelAggregator(object):
         return self.models
     
     def score(self):
-        y_mean = np.mean(self.y_test_s)
+        y_mean = np.mean(self.y_post_s)
         r2_best = None
         for model in self.models:
-            y_out = model.predict(self.X_test_s)
-            r2 = metrics.r2_score(self.y_test_s, y_out)
-            mse = metrics.mean_squared_error(self.y_test_s, y_out)
+            y_out = model.predict(self.X_post_s)
+            r2 = metrics.r2_score(self.y_post_s, y_out)
+            mse = metrics.mean_squared_error(self.y_post_s, y_out)
             rmse = sqrt(mse)
             cvrmse = rmse / y_mean
-            mae = metrics.mean_absolute_error(self.y_test_s, y_out)
+            mae = metrics.mean_absolute_error(self.y_post_s, y_out)
             if r2 > r2_best:
                 r2_best = r2
                 cvrmse_best = cvrmse
@@ -312,11 +309,8 @@ class ModelAggregator(object):
 if __name__=='__main__': 
 
     f = open('data/Ex6.csv', 'Ur')
-    changepoints = [
-        ( datetime(2012, 1, 29, 13, 15), 2 ),
-        ( datetime(2013, 9, 14, 23, 15), 3 )
-    ]
-    p0 = Preprocessor(f, changepoints=changepoints)
+    changepoint = None #datetime(2012, 1, 29, 13, 15)
+    p0 = Preprocessor(f, changepoint=changepoint)
 
     m = ModelAggregator(p0, test_size=0.2)
     m.train_all()
