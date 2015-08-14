@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.21',
+    version='0.0.22',
 
     description='Library for Measurement and Verification',
     long_description=long_description,
@@ -75,9 +75,9 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires = [
         'numpy>=1.9.0', 
-        'python-dateutil>=2.2',
-        'scikit-learn>=0.15.2',
-        'scipy>=0.14.0'
+        'python-dateutil>=2.4',
+        'scikit-learn>=0.16.1',
+        'scipy>=0.15.0'
     ],
 
     # List additional groups of dependencies here (e.g. development
