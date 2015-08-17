@@ -15,36 +15,43 @@ from mave.core import Preprocessor, ModelAggregator
 import pdb
 import argparse, logging
 
-def mave(input_file = None,
-         verbose = False,
-         start_frac = 0.2,
-         end_frac = 0.4):
-  f = open(input_file, 'Ur')
-  p0 = Preprocessor(f, start_frac, end_frac)
-  m = ModelAggregator(p0, test_size=0.2)
-  m.train_all()
-  print m.score()
+def mave(input_file=None,
+         verbose=None,
+         start_frac=None,
+         end_frac=None):
+    f = open(input_file, 'Ur')
+    p = Preprocessor(f, start_frac, end_frac)
+    m = ModelAggregator(p, test_size=0.25)
+    m.train_all()
+    logger.info(m)
+    logger.info(m.score())
 
 if __name__=='__main__': 
-  # parse args
-  parser = argparse.ArgumentParser()
-  parser.add_argument("input_file", 
-            help="filename for input data - REQUIRED ")
-  parser.add_argument("-v", "--verbose", action="store_true",
-                      help="increase output verbosity")
-  args = parser.parse_args()  
-  
-  # set up logging to screen and file
-  logger = logging.getLogger(__name__)
-  logger.setLevel(logging.INFO)
-  fo = logging.FileHandler("mave.log")
-  fo.setLevel(logging.INFO)
-  logger.addHandler(fo)
-  if args.verbose:
-  # log to screen also
-    po = logging.StreamHandler()
-    po.setLevel(logging.INFO)
-    logger.addHandler(po)
-  logger.info("\nAssessing input file: %s\n" % args.input_file)
-  
-  mave(**args.__dict__)
+    # parse args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file", 
+                        help="filename for input data - REQUIRED ")
+    parser.add_argument("-sf","--start_frac", type=float, default = 0.2, 
+                        help="truncate data before this fraction \
+                              of the file length")
+    parser.add_argument("-ef","--end_frac", type=float, default = 0.4, 
+                        help="truncate data from this fraction \
+                              of the file onwards")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                                            help="increase output verbosity")
+    args = parser.parse_args()  
+    
+    # set up logging to screen and file
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    fo = logging.FileHandler("mave.log")
+    fo.setLevel(logging.INFO)
+    logger.addHandler(fo)
+    if args.verbose:
+    # log to screen also
+        po = logging.StreamHandler()
+        po.setLevel(logging.INFO)
+        logger.addHandler(po)
+    logger.info("\nAssessing input file: %s" % args.input_file)
+    
+    mave(**args.__dict__)
