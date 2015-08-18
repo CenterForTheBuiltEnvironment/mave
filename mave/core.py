@@ -23,9 +23,9 @@ from holidays import holidays
 class Preprocessor(object):
 
     HOLIDAY_KEYS = ['USFederal']
-    DATETIME_COLUMN_NAME = 'time.LOCAL'
-    HISTORICAL_DATA_COLUMN_NAMES = ['dboatF']
-    TARGET_COLUMN_NAMES = ['wbelectricitykWh']
+    DATETIME_COLUMN_NAME = 'LocalDateTime'
+    HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
+    TARGET_COLUMN_NAMES = ['EnergyConsumption']
 
     def __init__(self, 
                  input_file, 
@@ -44,7 +44,6 @@ class Preprocessor(object):
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
                 self.holidays.union(holidays[key])
-        pdb.set_trace()
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
                                    dtype=None, 
@@ -52,7 +51,7 @@ class Preprocessor(object):
                                    usecols=named_cols,
                                    names=True, 
                                    missing_values='NA')
-        dcn = self.DATETIME_COLUMN_NAME.replace(".", "")
+        dcn = self.DATETIME_COLUMN_NAME
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
@@ -73,30 +72,21 @@ class Preprocessor(object):
         self.vals_per_hr = 0
         input_data, self.datetimes = self.interpolate_datetime(input_data,
                                                                datetimes)
-        if changepoint is not None:
-            self.changepoint_index = self.get_changepoint_index(changepoint)
-        else:
-            self.changepoint_index = None
-        # TODO: this >360 days test to use month or not applies to the  
-        # whole dataset... it should only apply to the training dataset
-        # Also include similar test to ensure there are multiple holidays in
-        # each dataset
-        self.use_month = True if (self.datetimes[0] - \
-                                  self.datetimes[-1]).days > 360 else False
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(self.datetimes))
-        self.num_dt_features = np.shape(d)[1]
-        # minute, hour, weekday, holiday, and (month)
 
+        # add other (non datetime related) input features
         input_data, target_column_index = self.append_input_features(\
                                                                 input_data, d)
-
         self.X, self.y, self.datetimes = \
                 self.clean_missing_data(input_data,
                                         self.datetimes,
                                         target_column_index)
+        if changepoint is not None:
+            self.changepoint_index = self.get_changepoint_index(changepoint)
+        else:
+            self.changepoint_index = None
         self.split_dataset()
-        pdb.set_trace()
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -192,7 +182,7 @@ class Preprocessor(object):
         # the headers, and the country in which the building is located
         headers = []
         country = None
-        var_names = []
+        named_cols = None
         for _ in range(100):
             row = self.reader.next()
             headers.append(row)
@@ -201,6 +191,7 @@ class Preprocessor(object):
                     row = self.reader.next()
                     headers.append(row)
                     country = row[i]
+            pdb.set_trace()
             if row[0] == self.DATETIME_COLUMN_NAME: 
                 named_cols = tuple(np.where(np.array(row) !='')[0])
                 break
@@ -247,6 +238,11 @@ class Preprocessor(object):
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
                     test_size=test_size, random_state=0)
+        # discard datetime features if there is insufficient data
+        #remove month
+        pdb.set_trace()
+        #remove holidays 
+
 
 class ModelAggregator(object):
 
@@ -382,7 +378,7 @@ class DualModelMeasurementAndVerification(object):
         raise NotImplemented
 
 if __name__=='__main__': 
-    f = open('data/Ex6.csv', 'Ur')
+    f = open('data/ex6.csv', 'Ur')
     changepoint = datetime(2012, 6, 1, 0, 0)
     p = Preprocessor(f, changepoint=changepoint)
     mnv = SingleModelMeasurementAndVerification(preprocessor=p)
