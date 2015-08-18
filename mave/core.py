@@ -28,12 +28,12 @@ class Preprocessor(object):
     TARGET_COLUMN_NAMES = ['wbelectricitykWh']
 
     def __init__(self, 
-                             input_file, 
-                             use_holidays=True,
-                             start_frac=0.0,
-                             end_frac=1.0,
-                             changepoint=None,
-                             ):
+                 input_file, 
+                 use_holidays=True,
+                 start_frac=0.0,
+                 end_frac=1.0,
+                 changepoint=None,
+                 ):
 
         self.reader = csv.reader(input_file, delimiter=',')
         self.headers, country = self.process_headers()
@@ -225,8 +225,9 @@ class Preprocessor(object):
 class ModelAggregator(object):
 
     def __init__(self, preprocessor, test_size=0.0):
-        X = preprocessor.X
-        y = np.ravel(preprocessor.y)
+        self.preprocessor = preprocessor
+        X = self.preprocessor.X
+        y = np.ravel(self.preprocessor.y)
 
         self.X_standardizer = preprocessing.StandardScaler().fit(X)
         self.y_standardizer = preprocessing.StandardScaler().fit(y)
@@ -236,10 +237,9 @@ class ModelAggregator(object):
         if preprocessor.changepoint_index is not None:
             # split at changepoint
             self.X_pre_s, self.X_post_s = np.split(self.X_s, 
-                                                                                         preprocessor.changepoint_index)
+                                               preprocessor.changepoint_index)
             self.y_pre_s, self.y_post_s = np.split(self.y_s, 
-                                                                                         preprocessor.changepoint_index)
-            print len(self.X_s), len(self.X_pre_s)
+                                               preprocessor.changepoint_index)
         else:
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
@@ -248,6 +248,7 @@ class ModelAggregator(object):
         self.models = []
         self.best_model = None
         self.best_score = None
+        self.error_metrics = None
 
     def train_dummy(self):
         dummy_trainer = trainers.DummyTrainer()
@@ -307,6 +308,7 @@ class ModelAggregator(object):
         #self.train_gradient_boosting()
 
         self.select_model()
+        self.score()
         return self.models
     
     def select_model(self):
@@ -317,36 +319,38 @@ class ModelAggregator(object):
         return self.best_model, self.best_score
 
     def __str__(self):
-        rv = "\nBest cross validation score on training data: %s"%\
+        rv = "\n=== Selected model ==="
+        rv += "\nBest cross validation score on training data: %s"%\
                                                    self.best_model.best_score_
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
-        try:
-            imps = self.best_model.best_estimator_.feature_importances_
-            rv +="\nThe relative importances of datetime input features are:"
-            rv += "\n  Minute: %s"%imps[0]
-            rv += "\n  Hour: %s"%imps[1]
-            rv += "\n  Weekday: %s"%imps[2]
-            rv += "\n  Holiday: %s"%imps[3]
-            if self.use_month: print "\n Month: %s"%imps[4]
-        except Exception, e:
-            print ""
+        imps = self.best_model.best_estimator_.feature_importances_
+        rv +="\nThe relative importances of datetime input features are:"
+        rv += "\n  Minute: %s"%imps[0]
+        rv += "\n  Hour: %s"%imps[1]
+        rv += "\n  Weekday: %s"%imps[2]
+        rv += "\n  Holiday: %s"%imps[3]
+        if self.preprocessor.use_month: print "\n Month: %s"%imps[4]
+
+        rv += "\n\n=== Fit to the baseline data ==="
+        rv += "\nThese error metrics represent the match between the"+ \
+                 " baseline data and the model:"
+        rv += str(self.error_metrics)
         return rv
 
     def score(self):
-        baseline = self.y_standardizer.inverse_transform(self.y_post_s)
+        baseline = self.y_standardizer.inverse_transform(self.y_s)
         prediction = self.y_standardizer.inverse_transform(\
-                                         self.best_model.predict(self.X_post_s))
-        c = comparer.Comparer(prediction=prediction,baseline=baseline)
-        #mse = metrics.mean_squared_error(self.y_post_s, y_out)
-        return c
+                                         self.best_model.predict(self.X_s))
+        self.error_metrics = comparer.Comparer(\
+                                      prediction=prediction,baseline=baseline)
+        return self.error_metrics
 
 if __name__=='__main__': 
 
     f = open('data/Ex6.csv', 'Ur')
-    changepoint = None #datetime(2012, 1, 29, 13, 15)
+    changepoint = datetime(2012, 1, 29, 13, 15)
     p0 = Preprocessor(f, changepoint=changepoint)
 
     m = ModelAggregator(p0, test_size=0.25)
     m.train_all()
     print m
-    print m.score()
