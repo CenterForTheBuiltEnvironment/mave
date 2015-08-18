@@ -37,7 +37,7 @@ class Preprocessor(object):
                  ):
 
         self.reader = csv.reader(input_file, delimiter=',')
-        self.headers, country = self.process_headers()
+        headers, country, named_cols = self.process_headers()
         input_file.seek(0) # rewind the file so we don't have to open it again
 
         self.holidays = set([])
@@ -46,14 +46,13 @@ class Preprocessor(object):
                 self.holidays.union(holidays[key])
         pdb.set_trace()
         input_data = np.genfromtxt(input_file, 
-                                   comments='#', 
                                    delimiter=',',
                                    dtype=None, 
-                                   skip_header=len(self.headers)-1, 
+                                   skip_header=len(headers)-1, 
+                                   usecols=named_cols,
                                    names=True, 
                                    missing_values='NA')
         dcn = self.DATETIME_COLUMN_NAME.replace(".", "")
-        pdb.set_trace()
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
@@ -193,6 +192,7 @@ class Preprocessor(object):
         # the headers, and the country in which the building is located
         headers = []
         country = None
+        var_names = []
         for _ in range(100):
             row = self.reader.next()
             headers.append(row)
@@ -201,8 +201,10 @@ class Preprocessor(object):
                     row = self.reader.next()
                     headers.append(row)
                     country = row[i]
-            if row[0] == self.DATETIME_COLUMN_NAME: break
-        return headers, country
+            if row[0] == self.DATETIME_COLUMN_NAME: 
+                named_cols = tuple(np.where(np.array(row) !='')[0])
+                break
+        return headers, country, named_cols
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
