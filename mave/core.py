@@ -97,7 +97,7 @@ class Preprocessor(object):
                                         self.datetimes,
                                         target_column_index)
         self.split_dataset()
-
+        pdb.set_trace()
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -205,9 +205,8 @@ class Preprocessor(object):
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
-        # minute, hour, weekday, holiday, and (month)
-        w = float(dt.weekday())
-        rv = float(dt.minute), float(dt.hour), w
+        # minute, hour, weekday, month, and (holiday)
+        rv = float(dt.minute), float(dt.hour), float(dt.weekday()), dt.month
         if self.holidays:
             if dt.date() in self.holidays:
                 hol = 3.0 # this day is a holiday
@@ -218,8 +217,6 @@ class Preprocessor(object):
             else:
                 hol = 0.0 # this day is not near a holiday
             rv += hol,
-
-        if self.use_month: rv += float(dt.month),
         return rv
 
     def get_changepoint_index(self, changepoint):
@@ -232,14 +229,18 @@ class Preprocessor(object):
         self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
         self.X_s = self.X_standardizer.transform(self.X)
         self.y_s = self.y_standardizer.transform(self.y)
-
         if self.changepoint_index is not None:
             # split at changepoint
-            self.X_pre_s, self.X_post_s = np.split(self.X_s, 
-                                               self.changepoint_index)
-            self.y_pre_s, self.y_post_s = np.split(self.y_s, 
-                                               self.changepoint_index)
+            self.X_pre_s,self.X_post_s = np.vsplit(self.X_s,
+                                                   [self.changepoint_index])
+            self.y_pre_s,self.y_post_s = \
+            self.y_s[:self.changepoint_index], self.y_s[self.changepoint_index:]
         else:
+            # handle case where no changepoint is given
+            # by using a predefined fraction of the dataset
+            # to split into pre and post datasets.
+            # this is useful for testing the accuracy of the mmodel methods
+            # for datasets in which no retrofit is known to have occurred
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
                     test_size=test_size, random_state=0)
@@ -249,10 +250,10 @@ class ModelAggregator(object):
     def __init__(self, preprocessor, model_type):
         self.model_type = model_type
         self.p = preprocessor
-        if self.model_type == "Pre-retrofit":
+        if self.model_type == "pre-retrofit":
             self.X = preprocessor.X_pre_s
             self.y = np.ravel(self.p.y_pre_s)
-        elif model_type == "Post-retrofit":
+        elif model_type == "post-retrofit":
             self.X = preprocessor.X_post_s
             self.y = np.ravel(self.p.y_post_s)
         self.models = []
@@ -354,7 +355,7 @@ class ModelAggregator(object):
 class SingleModelMeasurementAndVerification(object):
     def __init__(self, preprocessor):
         p = preprocessor
-        self.m = ModelAggregator(preprocessor = p, model_type="Pre-retrofit")
+        self.m = ModelAggregator(preprocessor = p, model_type="pre-retrofit")
         self.m.train_all()
         measured_post_retrofit = p.y_standardizer.inverse_transform(p.y_post_s)
         predicted_post_retrofit = p.y_standardizer.inverse_transform(\
@@ -377,7 +378,7 @@ class DualModelMeasurementAndVerification(object):
 
 if __name__=='__main__': 
     f = open('data/Ex6.csv', 'Ur')
-    changepoint = datetime(2012, 1, 29, 13, 15)
+    changepoint = datetime(2012, 6, 1, 0, 0)
     p = Preprocessor(f, changepoint=changepoint)
     mnv = SingleModelMeasurementAndVerification(preprocessor=p)
     print mnv
