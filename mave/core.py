@@ -44,7 +44,7 @@ class Preprocessor(object):
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
                 pdb.set_trace()
-                self.holidays.union(holidays[key])
+                self.holidays = self.holidays.union(holidays[key])
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
                                    dtype=None, 
