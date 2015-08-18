@@ -33,6 +33,7 @@ class Preprocessor(object):
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoint=None,
+                 test_size =0.25
                  ):
 
         self.reader = csv.reader(input_file, delimiter=',')
@@ -79,6 +80,8 @@ class Preprocessor(object):
             self.changepoint_index = None
         # TODO: this >360 days test to use month or not applies to the  
         # whole dataset... it should only apply to the baseline training dataset
+        # Also include similar test to ensure there are multiple holidays in
+        # each dataset
         self.use_month = True if (self.datetimes[0] - \
                                   self.datetimes[-1]).days > 360 else False
         vectorized_process_datetime = np.vectorize(self.process_datetime)
@@ -87,12 +90,14 @@ class Preprocessor(object):
         # minute, hour, weekday, holiday, and (month)
 
         input_data, target_column_index = self.append_input_features(\
-                                                                                                        input_data, d)
+                                                                input_data, d)
 
         self.X, self.y, self.datetimes = \
                 self.clean_missing_data(input_data,
                                         self.datetimes,
                                         target_column_index)
+        self.split_dataset()
+
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -222,29 +227,30 @@ class Preprocessor(object):
         changepoint_index = a[0][0]
         return changepoint_index
 
-class ModelAggregator(object):
+    def split_dataset(self):
+        self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
+        self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
+        self.X_s = self.X_standardizer.transform(self.X)
+        self.y_s = self.y_standardizer.transform(self.y)
 
-    def __init__(self, preprocessor, test_size=0.0):
-        self.preprocessor = preprocessor
-        X = self.preprocessor.X
-        y = np.ravel(self.preprocessor.y)
-
-        self.X_standardizer = preprocessing.StandardScaler().fit(X)
-        self.y_standardizer = preprocessing.StandardScaler().fit(y)
-        self.X_s = self.X_standardizer.transform(X)
-        self.y_s = self.y_standardizer.transform(y)
-
-        if preprocessor.changepoint_index is not None:
+        if self.changepoint_index is not None:
             # split at changepoint
             self.X_pre_s, self.X_post_s = np.split(self.X_s, 
-                                               preprocessor.changepoint_index)
+                                               self.changepoint_index)
             self.y_pre_s, self.y_post_s = np.split(self.y_s, 
-                                               preprocessor.changepoint_index)
+                                               self.changepoint_index)
         else:
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
                     test_size=test_size, random_state=0)
 
+class ModelAggregator(object):
+
+    def __init__(self, X, y, y_standardizer, input_feature_names):
+        self.X = X 
+        self.y = np.ravel(y)
+        self.y_standardizer = y_standardizer
+        self.input_feature_names = input_feature_names
         self.models = []
         self.best_model = None
         self.best_score = None
@@ -252,49 +258,49 @@ class ModelAggregator(object):
 
     def train_dummy(self):
         dummy_trainer = trainers.DummyTrainer()
-        dummy_trainer.train(self.X_pre_s, 
-                            self.y_pre_s,
+        dummy_trainer.train(self.X, 
+                            self.y,
                             randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
     def train_hour_weekday(self):
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
-        hour_weekday_trainer.train(self.X_pre_s, 
-                                   self.y_pre_s, 
+        hour_weekday_trainer.train(self.X, 
+                                   self.y, 
                                    randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
     def train_kneighbors(self):
         kneighbors_trainer = trainers.KNeighborsTrainer()
-        kneighbors_trainer.train(self.X_pre_s, self.y_pre_s)
+        kneighbors_trainer.train(self.X, self.y)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self):
         svr_trainer = trainers.SVRTrainer(search_iterations=0)
-        svr_trainer.train(self.X_pre_s, self.y_pre_s)
+        svr_trainer.train(self.X, self.y)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self):
         gradient_boosting_trainer = trainers.GradientBoostingTrainer(\
                                                          search_iterations=2)
-        gradient_boosting_trainer.train(self.X_pre_s, self.y_pre_s)
+        gradient_boosting_trainer.train(self.X, self.y)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self):
         random_forest_trainer = trainers.RandomForestTrainer(\
                                                         search_iterations=20)
-        random_forest_trainer.train(self.X_pre_s, self.y_pre_s)
+        random_forest_trainer.train(self.X, self.y)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self):
         extra_trees_trainer = trainers.ExtraTreesTrainer(search_iterations=20)
-        extra_trees_trainer.train(self.X_pre_s, self.y_pre_s)
+        extra_trees_trainer.train(self.X, self.y)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
@@ -318,39 +324,36 @@ class ModelAggregator(object):
                 self.best_model = model
         return self.best_model, self.best_score
 
+    def score(self):
+        baseline = self.y_standardizer.inverse_transform(self.y)
+        prediction = self.y_standardizer.inverse_transform(\
+                                         self.best_model.predict(self.X))
+        self.error_metrics = comparer.Comparer(\
+                                      prediction=prediction,baseline=baseline)
+        return self.error_metrics
+
     def __str__(self):
         rv = "\n=== Selected model ==="
         rv += "\nBest cross validation score on training data: %s"%\
                                                    self.best_model.best_score_
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
         imps = self.best_model.best_estimator_.feature_importances_
-        rv +="\nThe relative importances of datetime input features are:"
-        rv += "\n  Minute: %s"%imps[0]
-        rv += "\n  Hour: %s"%imps[1]
-        rv += "\n  Weekday: %s"%imps[2]
-        rv += "\n  Holiday: %s"%imps[3]
-        if self.preprocessor.use_month: print "\n Month: %s"%imps[4]
-
+        rv +="\nThe relative importances of input features are:\n%s"%imps
+        rv += "Which corresponds to:\n%s"%self.input_feature_names
         rv += "\n\n=== Fit to the baseline data ==="
         rv += "\nThese error metrics represent the match between the"+ \
                  " baseline data and the model:"
         rv += str(self.error_metrics)
         return rv
 
-    def score(self):
-        baseline = self.y_standardizer.inverse_transform(self.y_s)
-        prediction = self.y_standardizer.inverse_transform(\
-                                         self.best_model.predict(self.X_s))
-        self.error_metrics = comparer.Comparer(\
-                                      prediction=prediction,baseline=baseline)
-        return self.error_metrics
-
 if __name__=='__main__': 
-
     f = open('data/Ex6.csv', 'Ur')
     changepoint = datetime(2012, 1, 29, 13, 15)
-    p0 = Preprocessor(f, changepoint=changepoint)
+    p = Preprocessor(f, changepoint=changepoint)
 
-    m = ModelAggregator(p0, test_size=0.25)
+    m = ModelAggregator(X=p.X_pre_s,
+                        y=p.y_pre_s,
+                        y_standardizer=p.y_standardizer,
+                        input_feature_names = "Minute, Hour, Day, Holiday, Month")
     m.train_all()
     print m
