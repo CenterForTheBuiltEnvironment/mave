@@ -79,7 +79,7 @@ class Preprocessor(object):
         else:
             self.changepoint_index = None
         # TODO: this >360 days test to use month or not applies to the  
-        # whole dataset... it should only apply to the baseline training dataset
+        # whole dataset... it should only apply to the training dataset
         # Also include similar test to ensure there are multiple holidays in
         # each dataset
         self.use_month = True if (self.datetimes[0] - \
@@ -246,11 +246,15 @@ class Preprocessor(object):
 
 class ModelAggregator(object):
 
-    def __init__(self, X, y, y_standardizer, input_feature_names):
-        self.X = X 
-        self.y = np.ravel(y)
-        self.y_standardizer = y_standardizer
-        self.input_feature_names = input_feature_names
+    def __init__(self, preprocessor, model_type):
+        self.model_type = model_type
+        self.p = preprocessor
+        if self.model_type == "Pre-retrofit":
+            self.X = preprocessor.X_pre_s
+            self.y = np.ravel(self.p.y_pre_s)
+        elif model_type == "Post-retrofit":
+            self.X = preprocessor.X_post_s
+            self.y = np.ravel(self.p.y_post_s)
         self.models = []
         self.best_model = None
         self.best_score = None
@@ -325,8 +329,8 @@ class ModelAggregator(object):
         return self.best_model, self.best_score
 
     def score(self):
-        baseline = self.y_standardizer.inverse_transform(self.y)
-        prediction = self.y_standardizer.inverse_transform(\
+        baseline = self.p.y_standardizer.inverse_transform(self.y)
+        prediction = self.p.y_standardizer.inverse_transform(\
                                          self.best_model.predict(self.X))
         self.error_metrics = comparer.Comparer(\
                                       prediction=prediction,baseline=baseline)
@@ -337,23 +341,43 @@ class ModelAggregator(object):
         rv += "\nBest cross validation score on training data: %s"%\
                                                    self.best_model.best_score_
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
-        imps = self.best_model.best_estimator_.feature_importances_
-        rv +="\nThe relative importances of input features are:\n%s"%imps
-        rv += "Which corresponds to:\n%s"%self.input_feature_names
-        rv += "\n\n=== Fit to the baseline data ==="
+        if self.best_model.best_estimator_.feature_importances_ is not None:
+            imps = self.best_model.best_estimator_.feature_importances_
+            rv += "\nThe relative importances of input features are:\n%s"%imps
+            #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
+        rv += "\n\n=== Fit to the %s data ==="%self.model_type
         rv += "\nThese error metrics represent the match between the"+ \
-                 " baseline data and the model:"
+                 " %s data and the model:"%self.model_type
         rv += str(self.error_metrics)
         return rv
+
+class SingleModelMeasurementAndVerification(object):
+    def __init__(self, preprocessor):
+        p = preprocessor
+        self.m = ModelAggregator(preprocessor = p, model_type="Pre-retrofit")
+        self.m.train_all()
+        measured_post_retrofit = p.y_standardizer.inverse_transform(p.y_post_s)
+        predicted_post_retrofit = p.y_standardizer.inverse_transform(\
+                                         self.m.best_model.predict(p.X_post_s))
+        self.error_metrics = comparer.Comparer(\
+                                         prediction=predicted_post_retrofit,
+                                         baseline=measured_post_retrofit)
+
+    def __str__(self):
+        rv = str(self.m)
+        rv += "\n=== Results ==="
+        rv += "\nThese error metrics represent the match between the"+ \
+                 " measured postretrofit data and the predicted consumption:"
+        rv += str(self.error_metrics)
+        return rv
+ 
+class DualModelMeasurementAndVerification(object):
+    def __init__(self, preprocessor):
+        raise NotImplemented
 
 if __name__=='__main__': 
     f = open('data/Ex6.csv', 'Ur')
     changepoint = datetime(2012, 1, 29, 13, 15)
     p = Preprocessor(f, changepoint=changepoint)
-
-    m = ModelAggregator(X=p.X_pre_s,
-                        y=p.y_pre_s,
-                        y_standardizer=p.y_standardizer,
-                        input_feature_names = "Minute, Hour, Day, Holiday, Month")
-    m.train_all()
-    print m
+    mnv = SingleModelMeasurementAndVerification(preprocessor=p)
+    print mnv
