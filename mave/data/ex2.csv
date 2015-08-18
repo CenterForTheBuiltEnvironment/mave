@@ -1,7 +1,7 @@
 buildingID,zip,country,floorarea.SF,buildingtype.STR
-cbe_03,94709,us,97032,education-college_university
-# On-site building and weather information,,,,
-time.LOCAL,wbelectricity.kWh,dboat.F,,
+cbe_02,94709,us,97032,education-college_university
+
+LocalDateTime,EnergyConsumption,OutsideDryBulbTemperature,,
 1/29/2012 12:45,76.95,59.381,,
 1/29/2012 13:00,77.425,60.15,,
 1/29/2012 13:15,78.5,60.759,,
