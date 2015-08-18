@@ -44,7 +44,7 @@ class Preprocessor(object):
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
                 self.holidays.union(holidays[key])
-
+        pdb.set_trace()
         input_data = np.genfromtxt(input_file, 
                                    comments='#', 
                                    delimiter=',',
@@ -53,12 +53,12 @@ class Preprocessor(object):
                                    names=True, 
                                    missing_values='NA')
         dcn = self.DATETIME_COLUMN_NAME.replace(".", "")
-
+        pdb.set_trace()
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
-
+        
         try: 
             datetimes = map(lambda d: datetime.strptime(d, "%m/%d/%y %H:%M"),
                                                              input_data[dcn])
@@ -71,7 +71,7 @@ class Preprocessor(object):
         for i in range(1,len(dtypes)):
             dtypes[i] = dtypes[i][0], 'f8' # parse other data as float
         input_data = input_data.astype(dtypes)
-
+        self.vals_per_hr = 0
         input_data, self.datetimes = self.interpolate_datetime(input_data,
                                                                datetimes)
         if changepoint is not None:
@@ -118,7 +118,7 @@ class Preprocessor(object):
         X = np.hstack((d[:,:target_column_index], d[:,target_column_index+1:]))
         return X, target_data, datetimes
 
-    def append_input_features(self, data, d0, historical_data_points=0):
+    def append_input_features(self, data, d0, historical_data_points=2):
         column_names = data.dtype.names[1:] # no need to include datetime column
         d = d0
         for s in column_names:
@@ -129,13 +129,14 @@ class Preprocessor(object):
                     # at the intervals defined by n_vals_in_past_day
                     for v in range(1, historical_data_points + 1):
                         past_hours = v * 24 / (historical_data_points + 1)
-                        n_vals = past_hours * vals_per_hr
+                        n_vals = past_hours * self.vals_per_hr
                         past_data = np.roll(data[s], n_vals)
                         # for the first day in the file 
                         # there will be no historical data
                         # use the data from the next day as a rough estimate
-                        past_data[0:n_vals] = past_data[ 24 * vals_per_hr: \
-                                                 24 * vals_per_hr + n_vals ]
+                        past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
+                                                 24*self.vals_per_hr+n_vals ]
+                        d = np.column_stack( (d, past_data) )
             elif not s in self.TARGET_COLUMN_NAMES:
                 # just add the column as an input feature 
                 # without historical data
@@ -155,7 +156,7 @@ class Preprocessor(object):
 
         # calculate the interval between datetimes
         interval = second_val - start
-        vals_per_hr = 3600 / interval.seconds
+        self.vals_per_hr = 3600 / interval.seconds
         assert (3600 % interval.seconds) == 0,  \
             'Interval between datetimes must divide evenly into an hour'
 
@@ -342,10 +343,12 @@ class ModelAggregator(object):
         rv += "\nBest cross validation score on training data: %s"%\
                                                    self.best_model.best_score_
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
-        if self.best_model.best_estimator_.feature_importances_ is not None:
+        try:
             imps = self.best_model.best_estimator_.feature_importances_
             rv += "\nThe relative importances of input features are:\n%s"%imps
             #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
+        except Exception, e:
+            rv += ""
         rv += "\n\n=== Fit to the %s data ==="%self.model_type
         rv += "\nThese error metrics represent the match between the"+ \
                  " %s data and the model:"%self.model_type
