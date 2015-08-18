@@ -43,6 +43,7 @@ class Preprocessor(object):
         self.holidays = set([])
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
+                pdb.set_trace()
                 self.holidays.union(holidays[key])
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
@@ -87,6 +88,7 @@ class Preprocessor(object):
         else:
             self.changepoint_index = None
         self.split_dataset()
+        pdb.set_trace()
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -181,8 +183,6 @@ class Preprocessor(object):
         # reads up to the first 100 lines of a file and returns
         # the headers, and the country in which the building is located
         headers = []
-        country = None
-        named_cols = None
         for _ in range(100):
             row = self.reader.next()
             headers.append(row)
@@ -191,16 +191,16 @@ class Preprocessor(object):
                     row = self.reader.next()
                     headers.append(row)
                     country = row[i]
-            pdb.set_trace()
-            if row[0] == self.DATETIME_COLUMN_NAME: 
-                named_cols = tuple(np.where(np.array(row) !='')[0])
-                break
+            if len(row)>0: 
+                if row[0] == self.DATETIME_COLUMN_NAME: 
+                    named_cols = tuple(np.where(np.array(row) !='')[0])
+                    break
         return headers, country, named_cols
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
         # minute, hour, weekday, month, and (holiday)
-        rv = float(dt.minute), float(dt.hour), float(dt.weekday()), dt.month
+        rv = float(dt.minute), float(dt.hour), float(dt.weekday()), float(dt.month)
         if self.holidays:
             if dt.date() in self.holidays:
                 hol = 3.0 # this day is a holiday
@@ -225,6 +225,8 @@ class Preprocessor(object):
         self.y_s = self.y_standardizer.transform(self.y)
         if self.changepoint_index is not None:
             # split at changepoint
+            self.datetimes_pre,self.datetimes_post = \
+            self.datetimes[:self.changepoint_index], self.datetimes[self.changepoint_index:]
             self.X_pre_s,self.X_post_s = np.vsplit(self.X_s,
                                                    [self.changepoint_index])
             self.y_pre_s,self.y_post_s = \
@@ -238,11 +240,6 @@ class Preprocessor(object):
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
                     test_size=test_size, random_state=0)
-        # discard datetime features if there is insufficient data
-        #remove month
-        pdb.set_trace()
-        #remove holidays 
-
 
 class ModelAggregator(object):
 
