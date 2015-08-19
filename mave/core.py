@@ -26,13 +26,16 @@ class Preprocessor(object):
     DATETIME_COLUMN_NAME = 'LocalDateTime'
     HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
     TARGET_COLUMN_NAMES = ['EnergyConsumption']
+    DISCARD_TAG = -1
+    PRE_DATA_TAG = 0
+    POST_DATA_TAG = 1
 
     def __init__(self, 
                  input_file, 
                  use_holidays=True,
                  start_frac=0.0,
                  end_frac=1.0,
-                 changepoint=None,
+                 changepoints=None,
                  test_size =0.25
                  ):
 
@@ -43,7 +46,6 @@ class Preprocessor(object):
         self.holidays = set([])
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
-                pdb.set_trace()
                 self.holidays = self.holidays.union(holidays[key])
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
@@ -64,7 +66,6 @@ class Preprocessor(object):
         except ValueError:
             datetimes = map(lambda d: dateutil.parser.parse(d, dayfirst=False),
                                                                input_data[dcn])
-
         dtypes = input_data.dtype.descr
         dtypes[0] = dtypes[0][0], '|S16' # force S16 datetimes
         for i in range(1,len(dtypes)):
@@ -83,11 +84,8 @@ class Preprocessor(object):
                 self.clean_missing_data(input_data,
                                         self.datetimes,
                                         target_column_index)
-        if changepoint is not None:
-            self.changepoint_index = self.get_changepoint_index(changepoint)
-        else:
-            self.changepoint_index = None
-        self.split_dataset()
+        self.cps = self.changepoint_feature(changepoints) 
+        self.split_dataset(test_size=test_size)
         pdb.set_trace()
 
     def clean_missing_data(self, d, datetimes, target_column_index):
@@ -213,24 +211,31 @@ class Preprocessor(object):
             rv += hol,
         return rv
 
-    def get_changepoint_index(self, changepoint):
-        a = np.where( self.datetimes >= changepoint )
-        changepoint_index = a[0][0]
-        return changepoint_index
+    def changepoint_feature(self, changepoints):
+        if changepoints is not None:
+            cps = sorted(changepoints)
+            feat = np.zeros(len(self.datetimes))
+            for (cp_date, tag) in cps:
+                ind = np.where(self.datetimes >= cp_date)[0][0] 
+                feat[ind:] = tag
+        else:
+            feat = None
+        return feat
 
-    def split_dataset(self):
+    def split_dataset(self, test_size):
         self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
         self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
         self.X_s = self.X_standardizer.transform(self.X)
         self.y_s = self.y_standardizer.transform(self.y)
-        if self.changepoint_index is not None:
-            # split at changepoint
-            self.datetimes_pre,self.datetimes_post = \
-            self.datetimes[:self.changepoint_index], self.datetimes[self.changepoint_index:]
-            self.X_pre_s,self.X_post_s = np.vsplit(self.X_s,
-                                                   [self.changepoint_index])
-            self.y_pre_s,self.y_post_s = \
-            self.y_s[:self.changepoint_index], self.y_s[self.changepoint_index:]
+        if self.cps is not None:
+            pdb.set_trace()
+            pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
+            post_inds = np.where(self.cps == self.POST_DATA_TAG)
+           
+            self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
+            self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
+            self.datetimes_pre, self.datetimes_post = \
+                 self.datetimes[pre_inds], self.datetimes[post_inds]
         else:
             # handle case where no changepoint is given
             # by using a predefined fraction of the dataset
@@ -239,7 +244,7 @@ class Preprocessor(object):
             # for datasets in which no retrofit is known to have occurred
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
-                    test_size=test_size, random_state=0)
+                    test_size=self.test_size, random_state=0)
 
 class ModelAggregator(object):
 
@@ -376,7 +381,13 @@ class DualModelMeasurementAndVerification(object):
 
 if __name__=='__main__': 
     f = open('data/ex6.csv', 'Ur')
-    changepoint = datetime(2012, 6, 1, 0, 0)
-    p = Preprocessor(f, changepoint=changepoint)
+    pdb.set_trace()
+    changepoints = [
+                   (datetime(2012, 1, 29, 12, 0), 0),
+                   (datetime(2012, 12, 20, 0, 0), -1),
+                   (datetime(2013, 1, 5, 0, 0), 0),
+                   (datetime(2013, 3, 1, 0, 0), 1),
+                   ]
+    p = Preprocessor(f, changepoints=changepoints)
     mnv = SingleModelMeasurementAndVerification(preprocessor=p)
     print mnv
