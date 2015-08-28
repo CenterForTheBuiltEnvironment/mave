@@ -11,7 +11,8 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-from mave.core import Preprocessor, ModelAggregator
+from mave.core import Preprocessor, ModelAggregator, SingleModelMeasurementAndVerification
+from datetime import datetime
 import pdb
 import argparse, logging
 
@@ -20,11 +21,10 @@ def mave(input_file=None,
          start_frac=None,
          end_frac=None):
     f = open(input_file, 'Ur')
-    p = Preprocessor(f, start_frac, end_frac)
-    m = ModelAggregator(p, test_size=0.25)
-    m.train_all()
-    logger.info(m)
-    logger.info(m.score())
+    changepoint = datetime(2012, 6, 1, 0, 0)
+    p = Preprocessor(f, start_frac, end_frac, changepoint=changepoint)
+    mnv = SingleModelMeasurementAndVerification(preprocessor=p)
+    logger.info(mnv)
 
 if __name__=='__main__': 
     # parse args

@@ -86,7 +86,6 @@ class Preprocessor(object):
                                         target_column_index)
         self.cps = self.changepoint_feature(changepoints) 
         self.split_dataset(test_size=test_size)
-        pdb.set_trace()
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -228,7 +227,6 @@ class Preprocessor(object):
         self.X_s = self.X_standardizer.transform(self.X)
         self.y_s = self.y_standardizer.transform(self.y)
         if self.cps is not None:
-            pdb.set_trace()
             pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
             post_inds = np.where(self.cps == self.POST_DATA_TAG)
            
@@ -248,13 +246,15 @@ class Preprocessor(object):
 
 class ModelAggregator(object):
 
-    def __init__(self, preprocessor, model_type):
-        self.model_type = model_type
+    def __init__(self, 
+                 preprocessor, 
+                 model_type):
         self.p = preprocessor
+        self.model_type = model_type
         if self.model_type == "pre-retrofit":
             self.X = preprocessor.X_pre_s
             self.y = np.ravel(self.p.y_pre_s)
-        elif model_type == "post-retrofit":
+        elif self.model_type == "post-retrofit":
             self.X = preprocessor.X_post_s
             self.y = np.ravel(self.p.y_post_s)
         self.models = []
@@ -279,33 +279,36 @@ class ModelAggregator(object):
         return hour_weekday_trainer.model
 
     def train_kneighbors(self):
-        kneighbors_trainer = trainers.KNeighborsTrainer()
+        kneighbors_trainer = trainers.KNeighborsTrainer(\
+                                     search_iterations=5)
         kneighbors_trainer.train(self.X, self.y)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self):
-        svr_trainer = trainers.SVRTrainer(search_iterations=0)
+        svr_trainer = trainers.SVRTrainer(\
+                                     search_iterations=5)
         svr_trainer.train(self.X, self.y)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self):
         gradient_boosting_trainer = trainers.GradientBoostingTrainer(\
-                                                         search_iterations=2)
+                                                            search_iterations=5)
         gradient_boosting_trainer.train(self.X, self.y)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self):
         random_forest_trainer = trainers.RandomForestTrainer(\
-                                                        search_iterations=20)
+                                                           search_iterations=20)
         random_forest_trainer.train(self.X, self.y)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self):
-        extra_trees_trainer = trainers.ExtraTreesTrainer(search_iterations=20)
+        extra_trees_trainer = trainers.ExtraTreesTrainer(\
+                                                         search_iterations=20)
         extra_trees_trainer.train(self.X, self.y)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
@@ -381,12 +384,11 @@ class DualModelMeasurementAndVerification(object):
 
 if __name__=='__main__': 
     f = open('data/ex6.csv', 'Ur')
-    pdb.set_trace()
     changepoints = [
-                   (datetime(2012, 1, 29, 12, 0), 0),
-                   (datetime(2012, 12, 20, 0, 0), -1),
-                   (datetime(2013, 1, 5, 0, 0), 0),
-                   (datetime(2013, 3, 1, 0, 0), 1),
+                   (datetime(2012, 1, 29, 12, 0), Preprocessor.PRE_DATA_TAG),
+                   (datetime(2012, 12, 20, 0, 0), Preprocessor.DISCARD_TAG),
+                   (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
+                   (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
                    ]
     p = Preprocessor(f, changepoints=changepoints)
     mnv = SingleModelMeasurementAndVerification(preprocessor=p)
