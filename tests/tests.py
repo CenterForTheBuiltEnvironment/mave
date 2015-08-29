@@ -1,12 +1,13 @@
-import unittest, pdb
+import unittest, pdb, sys
 from datetime import datetime
+sys.path.insert(0, './mave/')
 from mave.core import Preprocessor, ModelAggregator
 
 class Test(unittest.TestCase):
 
     EPS = 0.001
-    TEST_PATH_1 = "./mave/data/Ex1.csv"
-    TEST_PATH_6 = "./mave/data/Ex6.csv"
+    TEST_PATH_1 = "./mave/data/ex1.csv"
+    TEST_PATH_6 = "./mave/data/ex6.csv"
 
     def test_success(self):
         self.assertTrue(True)
@@ -43,8 +44,8 @@ class Test(unittest.TestCase):
     def test_changepoint_feature(self):
         f = open(self.TEST_PATH_1, 'Ur')
         changepoints = [
-            datetime(2012, 1, 29, 13, 15),
-            datetime(2013, 9, 14, 23, 15),
+            (datetime(2012, 1, 29, 13, 15),0),
+            (datetime(2013, 9, 14, 23, 15),1),
         ]
         p = Preprocessor(f, changepoints=changepoints)
         m = ModelAggregator(p, test_size=0.2)

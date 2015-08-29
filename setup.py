@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.22',
+    version='0.0.31',
 
     description='Library for Measurement and Verification',
     long_description=long_description,
@@ -94,16 +94,16 @@ setup(
     # have to be included in MANIFEST.in as well.
     package_data={
         'mave': [
-            'data/Ex1.csv',
-            'data/Ex2.csv',
-            'data/Ex3.csv',
-            'data/Ex4.csv',
-            'data/Ex5.csv',
-            'data/Ex6.csv',
-            'data/Ex7.csv',
-            'data/Ex8.csv',
-            'data/Ex9_Predict.csv',
-            'data/Ex9_Baseline.csv'
+            'data/ex1.csv',
+            'data/ex2.csv',
+            'data/ex3.csv',
+            'data/ex4.csv',
+            'data/ex5.csv',
+            'data/ex6.csv',
+            'data/ex7.csv',
+            'data/ex8.csv',
+            'data/ex9_Predict.csv',
+            'data/ex9_Baseline.csv'
         ],
     },
 

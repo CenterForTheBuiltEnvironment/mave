@@ -42,7 +42,6 @@ class Preprocessor(object):
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
         input_file.seek(0) # rewind the file so we don't have to open it again
-
         self.holidays = set([])
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
