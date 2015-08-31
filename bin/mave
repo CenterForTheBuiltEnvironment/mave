@@ -11,7 +11,7 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-from mave.core import Preprocessor, ModelAggregator, SingleModelMeasurementAndVerification
+from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 from datetime import datetime
 import pdb
 import argparse, logging
