@@ -36,8 +36,8 @@ class Preprocessor(object):
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
-                 test_size =0.25
-                 ):
+                 test_size=0.25
+        ):
 
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
@@ -241,7 +241,7 @@ class Preprocessor(object):
             # for datasets in which no retrofit is known to have occurred
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
-                    test_size=self.test_size, random_state=0)
+                    test_size=test_size, random_state=0)
 
 class ModelAggregator(object):
 
@@ -260,6 +260,15 @@ class ModelAggregator(object):
         self.best_model = None
         self.best_score = None
         self.error_metrics = None
+
+    def train(self, model):
+        try:
+            train = getattr(self, "train_%s" % model)
+            m = train()
+            self.select_model()
+            return m
+        except AttributeError:
+            raise Exception("Model trainer %s not implemented") % model
 
     def train_dummy(self):
         dummy_trainer = trainers.DummyTrainer()
@@ -351,7 +360,7 @@ class ModelAggregator(object):
             #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
         except Exception, e:
             rv += ""
-        rv += "\n\n=== Fit to the %s data ==="%self.model_type
+        rv += "\n\n=== Fit to the %s data ===" % self.model_type
         rv += "\nThese error metrics represent the match between the"+ \
                  " %s data and the model:"%self.model_type
         rv += str(self.error_metrics)
