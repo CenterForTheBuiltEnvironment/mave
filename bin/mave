@@ -11,22 +11,19 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-from mave.core import Preprocessor, ModelAggregator, SingleModelMeasurementAndVerification
+from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 from datetime import datetime
 import pdb
 import argparse, logging
 
 def mave(input_file=None,
-         verbose=None,
-         start_frac=None,
-         end_frac=None):
+         **kwargs):
     f = open(input_file, 'Ur')
     changepoints = [
                    (datetime(2012, 6, 1, 0, 0),0),
                    (datetime(2012, 6, 1, 0, 0),1)
                   ]
-    p = Preprocessor(f, changepoints=changepoints)
-    mnv = SingleModelMeasurementAndVerification(preprocessor=p)
+    mnv = SingleModelMnV(input_file=f,changepoints=changepoints,**kwargs)
     logger.info(mnv)
 
 if __name__=='__main__': 
@@ -34,14 +31,9 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", 
                         help="filename for input data - REQUIRED ")
-#    parser.add_argument("-sf","--start_frac", type=float, default = 0.2, 
-#                        help="truncate data before this fraction \
-#                              of the file length")
-#    parser.add_argument("-ef","--end_frac", type=float, default = 0.4, 
-#                        help="truncate data from this fraction \
-#                              of the file onwards")
     parser.add_argument("-v", "--verbose", action="store_true",
                                             help="increase output verbosity")
+    parser.add_argument("-uh", "--use_holidays", action="store_true",                                            help="train using holidays as a feature")
     args = parser.parse_args()  
     
     # set up logging to screen and file

@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 import estimators
 from scipy.stats import randint as sp_randint
 from sklearn import cross_validation, svm, grid_search, \
@@ -6,10 +7,16 @@ from sklearn import cross_validation, svm, grid_search, \
 
 class ModelTrainer(object):
 
-    def __init__(self, search_iterations=5, n_jobs=-1, k=10):
+    def __init__(self, 
+                 search_iterations=5, 
+                 n_jobs=-1, 
+                 k=10, 
+                 verbose= False, 
+                 **kwargs):
         self.search_iterations = search_iterations
         self.n_jobs = n_jobs
         self.k = k
+        self.verbose = verbose
     
     def train(self, X_s, y_s, randomized_search=True):
         # using a random grid search assessed using k-fold cross validation
@@ -19,14 +26,16 @@ class ModelTrainer(object):
                                      param_distributions=self.params,
                                      n_iter=self.search_iterations,
                                      n_jobs=self.n_jobs,
-                                     cv=self.k)
+                                     cv=self.k,
+                                     verbose=self.verbose)
         # otherwise do an exhaustive grid search
         else:
             self.model = grid_search.GridSearchCV(
                                      self.model, 
                                      param_grid=self.params,
                                      n_jobs=self.n_jobs,
-                                     cv=self.k)
+                                     cv=self.k,
+                                     verbose=self.verbose)
 
         self.model.fit(X_s, y_s)
         return self.model
@@ -35,9 +44,15 @@ class DummyTrainer(ModelTrainer):
     params = {"strategy": ['mean', 'median']}
     model = dummy.DummyRegressor()
 
+    def __init__(self, **kwargs):
+        super(DummyTrainer, self).__init__(**kwargs) 
+
 class HourWeekdayBinModelTrainer(ModelTrainer): 
     params = {"strategy": ['mean', 'median']}
     model = estimators.HourWeekdayBinModel()
+
+    def __init__(self, **kwargs):
+        super(HourWeekdayBinModelTrainer, self).__init__(**kwargs) 
 
 class KNeighborsTrainer(ModelTrainer):
     params = {
@@ -46,6 +61,9 @@ class KNeighborsTrainer(ModelTrainer):
                 "leaf_size": np.logspace(1, 2.5, 1000)
     }
     model = neighbors.KNeighborsRegressor()
+
+    def __init__(self, **kwargs):
+        super(KNeighborsTrainer, self).__init__(**kwargs) 
 
 class SVRTrainer(ModelTrainer):
     params = {
@@ -57,6 +75,9 @@ class SVRTrainer(ModelTrainer):
     }
     model = svm.SVR()
 
+    def __init__(self, **kwargs):
+        super(SVRTrainer, self).__init__(**kwargs) 
+
 class RandomForestTrainer(ModelTrainer):
     max_features = 4
     params = {
@@ -67,6 +88,9 @@ class RandomForestTrainer(ModelTrainer):
                 "bootstrap": [True, False]
     }
     model = ensemble.RandomForestRegressor()
+
+    def __init__(self, **kwargs):
+        super(RandomForestTrainer, self).__init__(**kwargs) 
 
 class GradientBoostingTrainer(ModelTrainer):
     max_features = 4
@@ -81,6 +105,9 @@ class GradientBoostingTrainer(ModelTrainer):
     }
     model = ensemble.GradientBoostingRegressor()
 
+    def __init__(self, **kwargs):
+        super(GradientBoostingTrainer, self).__init__(**kwargs) 
+
 class ExtraTreesTrainer(ModelTrainer):
     max_features = 4
     params = {
@@ -92,6 +119,9 @@ class ExtraTreesTrainer(ModelTrainer):
                 "bootstrap": [True, False]
     }
     model = ensemble.ExtraTreesRegressor()
+
+    def __init__(self, **kwargs):
+        super(ExtraTreesTrainer, self).__init__(**kwargs) 
 
 if __name__=='__main__':
     t = DummyTrainer()
