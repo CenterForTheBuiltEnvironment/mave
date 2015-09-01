@@ -36,8 +36,8 @@ class Preprocessor(object):
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
-                 test_size =0.25
-                 ):
+                 test_size =0.25,
+                 **kwargs):
 
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
@@ -253,66 +253,66 @@ class ModelAggregator(object):
         self.best_model = None
         self.best_score = None
         self.error_metrics = None
-
-    def train_dummy(self):
-        dummy_trainer = trainers.DummyTrainer()
+ 
+    def train_dummy(self,**kwargs):
+        dummy_trainer = trainers.DummyTrainer(**kwargs)
         dummy_trainer.train(self.X, 
                             self.y,
                             randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
-    def train_hour_weekday(self):
-        hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer()
+    def train_hour_weekday(self, **kwargs):
+        hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer(**kwargs)
         hour_weekday_trainer.train(self.X, 
                                    self.y, 
                                    randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
-    def train_kneighbors(self):
-        kneighbors_trainer = trainers.KNeighborsTrainer(\
-                                     search_iterations=5)
+    def train_kneighbors(self, **kwargs):
+        kneighbors_trainer = trainers.KNeighborsTrainer(search_iterations=5,
+                                                        **kwargs)
         kneighbors_trainer.train(self.X, self.y)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
-    def train_svr(self):
+    def train_svr(self, **kwargs):
         svr_trainer = trainers.SVRTrainer(\
-                                     search_iterations=5)
+                                          search_iterations=5)
         svr_trainer.train(self.X, self.y)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
-    def train_gradient_boosting(self):
+    def train_gradient_boosting(self, **kwargs):
         gradient_boosting_trainer = trainers.GradientBoostingTrainer(\
                                                             search_iterations=5)
         gradient_boosting_trainer.train(self.X, self.y)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
-    def train_random_forest(self):
+    def train_random_forest(self, **kwargs):
         random_forest_trainer = trainers.RandomForestTrainer(\
                                                            search_iterations=20)
         random_forest_trainer.train(self.X, self.y)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
-    def train_extra_trees(self):
+    def train_extra_trees(self, **kwargs):
         extra_trees_trainer = trainers.ExtraTreesTrainer(\
                                                          search_iterations=20)
         extra_trees_trainer.train(self.X, self.y)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
-    def train_all(self):
-        self.train_dummy()
-        self.train_hour_weekday()
-        self.train_kneighbors()
-        self.train_random_forest()
+    def train_all(self,**kwargs):
+        self.train_dummy(**kwargs)
+        self.train_hour_weekday(**kwargs)
+        self.train_kneighbors(**kwargs)
+        self.train_random_forest(**kwargs)
         # These take forever and maybe aren't worth it?
-        #self.train_svr()
-        #self.train_gradient_boosting()
+        #self.train_svr(**kwargs)
+        #self.train_gradient_boosting(**kwargs)
 
         self.select_model()
         self.score()
@@ -351,15 +351,14 @@ class ModelAggregator(object):
         return rv
 
 class SingleModelMnV(object):
-    def __init__(self, input_file, changepoints):
+    def __init__(self, input_file, **kwargs):
         # pre-process the input data file
-        self.p = Preprocessor(input_file=input_file,
-                              changepoints=changepoints)
+        self.p = Preprocessor(input_file, **kwargs)
         # build a model based on the pre-retrofit data 
         self.m = ModelAggregator(X=self.p.X_pre_s,
                                  y=self.p.y_pre_s,
                                  y_standardizer=self.p.y_standardizer) 
-        self.m.train_all()
+        self.m.train_all(**kwargs)
         # evaluate the output of the model against the post-retrofit data
         measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                                              self.p.y_post_s)
@@ -371,7 +370,7 @@ class SingleModelMnV(object):
 
     def __str__(self):
         rv = "\n===== Pre-retrofit model training summary ====="
-        rv = str(self.m)
+        rv += str(self.m)
         rv += "\n===== Results ====="
         rv += "\nThese results represent the match between the"+ \
                  " measured post-retrofit data and the predicted" + \
@@ -380,20 +379,20 @@ class SingleModelMnV(object):
         return rv
  
 class DualModelMnV(object):
-    def __init__(self, input_file, changepoints):
+    def __init__(self, input_file, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file=input_file,
-                              changepoints=changepoints)
+                              **kwargs)
         # build a model based on the pre-retrofit data 
         self.m_pre = ModelAggregator(X=self.p.X_pre_s,
                                      y=self.p.y_pre_s,
                                      y_standardizer=self.p.y_standardizer) 
-        self.m_pre.train_all()
+        self.m_pre.train_all(**kwargs)
         # build a second model based on the post-retrofit data 
         self.m_post = ModelAggregator(X=self.p.X_post_s,
                                      y=self.p.y_post_s,
                                      y_standardizer=self.p.y_standardizer) 
-        self.m_post.train_all()
+        self.m_post.train_all(**kwargs)
         # evaluate the output of both models over the date range 
         # in the combined pre- & post- retrofit dataset and compare the
         # two predictions to estimate savings 
@@ -432,6 +431,6 @@ if __name__=='__main__':
                    (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
                    (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
                    ]
-    #mnv = SingleModelMnV(input_file=f,changepoints=changepoints)
-    mnv = DualModelMnV(input_file=f,changepoints=changepoints)
+    mnv = SingleModelMnV(input_file=f,changepoints=changepoints, use_holidays=False, n_jobs=8)
+    #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
