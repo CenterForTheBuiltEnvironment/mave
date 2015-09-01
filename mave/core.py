@@ -36,7 +36,7 @@ class Preprocessor(object):
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
-                 test_size=0.25
+                 test_size=0.25,
                  **kwargs):
 
         self.reader = csv.reader(input_file, delimiter=',')
@@ -314,7 +314,7 @@ class ModelAggregator(object):
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
-    def train_all(self,**kwargs):
+    def train_all(self, **kwargs):
         self.train_dummy(**kwargs)
         self.train_hour_weekday(**kwargs)
         self.train_kneighbors(**kwargs)
@@ -390,8 +390,7 @@ class SingleModelMnV(object):
 class DualModelMnV(object):
     def __init__(self, input_file, **kwargs):
         # pre-process the input data file
-        self.p = Preprocessor(input_file=input_file,
-                              **kwargs)
+        self.p = Preprocessor(input_file=input_file, **kwargs)
         # build a model based on the pre-retrofit data 
         self.m_pre = ModelAggregator(X=self.p.X_pre_s,
                                      y=self.p.y_pre_s,
