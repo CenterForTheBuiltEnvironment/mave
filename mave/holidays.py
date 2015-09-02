@@ -2,6 +2,7 @@ from datetime import date
 
 holidays = {
     'USFederal': set([
+        date(1999, 12, 24),
         date(2000, 1, 17),
         date(2000, 2, 21),
         date(2000, 5, 29),
