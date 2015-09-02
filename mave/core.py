@@ -36,7 +36,7 @@ class Preprocessor(object):
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
-                 test_size =0.25,
+                 test_size=0.25,
                  **kwargs):
 
         self.reader = csv.reader(input_file, delimiter=',')
@@ -241,7 +241,7 @@ class Preprocessor(object):
             # for datasets in which no retrofit is known to have occurred
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
-                    test_size=self.test_size, random_state=0)
+                    test_size=test_size, random_state=0)
 
 class ModelAggregator(object):
 
@@ -253,8 +253,17 @@ class ModelAggregator(object):
         self.best_model = None
         self.best_score = None
         self.error_metrics = None
- 
-    def train_dummy(self,**kwargs):
+
+    def train(self, model):
+        try:
+            train = getattr(self, "train_%s" % model)
+            m = train()
+            self.select_model()
+            return m
+        except AttributeError:
+            raise Exception("Model trainer %s not implemented") % model
+
+    def train_dummy(self, **kwargs):
         dummy_trainer = trainers.DummyTrainer(**kwargs)
         dummy_trainer.train(self.X, 
                             self.y,
@@ -305,7 +314,7 @@ class ModelAggregator(object):
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
-    def train_all(self,**kwargs):
+    def train_all(self, **kwargs):
         self.train_dummy(**kwargs)
         self.train_hour_weekday(**kwargs)
         self.train_kneighbors(**kwargs)
@@ -344,7 +353,7 @@ class ModelAggregator(object):
             #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
         except Exception, e:
             rv += ""
-        rv += "\n\n=== Fit to the training data ==="
+        rv += "\n\n=== Fit to the %s data ===" % self.model_type
         rv += "\nThese error metrics represent the match between the"+ \
                  " %s data used to train the model and the model prediction:"
         rv += str(self.error_metrics)
@@ -381,8 +390,7 @@ class SingleModelMnV(object):
 class DualModelMnV(object):
     def __init__(self, input_file, **kwargs):
         # pre-process the input data file
-        self.p = Preprocessor(input_file=input_file,
-                              **kwargs)
+        self.p = Preprocessor(input_file=input_file, **kwargs)
         # build a model based on the pre-retrofit data 
         self.m_pre = ModelAggregator(X=self.p.X_pre_s,
                                      y=self.p.y_pre_s,
