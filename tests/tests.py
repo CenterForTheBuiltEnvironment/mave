@@ -48,13 +48,13 @@ class Test(unittest.TestCase):
             (datetime(2013, 9, 14, 23, 15),1),
         ]
         p = Preprocessor(f, changepoints=changepoints, test_size=0.2)
-        m = ModelAggregator(p, "pre-retrofit")
+        m = ModelAggregator(X=p.X_pre_s,y=p.y_pre_s,y_standardizer=p.y_standardizer)
         self.assertTrue(m is not None)
 
     def test_model_aggregator(self):
         f = open(self.TEST_PATH_1, 'Ur')
         p = Preprocessor(f, test_size=0.2)
-        m = ModelAggregator(p, "pre-retrofit")
+        m = ModelAggregator(X=p.X_pre_s,y=p.y_pre_s,y_standardizer=p.y_standardizer)
         self.assertTrue(m is not None)
 
         dummy = m.train("dummy")

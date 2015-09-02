@@ -353,7 +353,7 @@ class ModelAggregator(object):
             #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
         except Exception, e:
             rv += ""
-        rv += "\n\n=== Fit to the %s data ===" % self.model_type
+        rv += "\n\n=== Fit to the training data ==="
         rv += "\nThese error metrics represent the match between the"+ \
                  " %s data used to train the model and the model prediction:"
         rv += str(self.error_metrics)
