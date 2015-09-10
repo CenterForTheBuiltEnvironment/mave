@@ -404,6 +404,7 @@ class DualModelMnV(object):
         # evaluate the output of both models over the date range 
         # in the combined pre- & post- retrofit dataset and compare the
         # two predictions to estimate savings 
+        # TODO: handle different dataset (e.g. TMY data)
         pre_model = self.p.y_standardizer.inverse_transform(\
                                     self.m_pre.best_model.predict(self.p.X_s))
         post_model = self.p.y_standardizer.inverse_transform(\
@@ -423,14 +424,6 @@ class DualModelMnV(object):
         rv += str(self.error_metrics)
         return rv
  
-
-class TMVDualModelMnV(object):
-    def __init__(self, input_file, changepoints):
-        # TODO: this is a placeholder for dual model MnV in which  
-        # we apply the two models and predict energy consumption
-        # based on a TMY file.
-        raise NotYetImplemented
-       
 if __name__=='__main__': 
     f = open('data/ex6.csv', 'Ur')
     changepoints = [
