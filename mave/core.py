@@ -10,7 +10,8 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-import os, csv, pickle, pdb
+import os, csv, pdb
+import cPickle as pickle
 import dateutil.parser
 import numpy as np
 import pprint
@@ -241,7 +242,8 @@ class Preprocessor(object):
             # for datasets in which no retrofit is known to have occurred
             self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
                     cross_validation.train_test_split(self.X_s, self.y_s, \
-                    test_size=test_size, random_state=0)
+                   test_size=test_size, random_state=0)
+
 
 class ModelAggregator(object):
 
@@ -360,7 +362,7 @@ class ModelAggregator(object):
         return rv
 
 class SingleModelMnV(object):
-    def __init__(self, input_file, **kwargs):
+    def __init__(self, input_file, save_p=False, save_csv=False, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -376,6 +378,27 @@ class SingleModelMnV(object):
         self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
                                          baseline=measured_post_retrofit)
+
+        if save_p:
+            pkl_name = 'model&error.pkl'
+            with open(pkl_name, 'wb') as output:
+                pickler = pickle.Pickler(output, -1)
+                #pickler.dump(self.p)
+                pickler.dump(self.m.best_model.best_estimator_)
+                pickler.dump(self.error_metrics)
+
+        if save_csv:
+            new_date = []
+            for i in self.p.datetimes:
+                x = i.strftime('%y-%d-%m %H:%M')
+                new_date.append(x)
+            str_date = np.array(new_date)
+            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
+            post_data = np.column_stack((X_post,
+                                   measured_post_retrofit,
+                                   predicted_post_retrofit,))
+            np.savetxt('prep.csv', post_data, delimiter=',', fmt='%s')
+                
 
     def __str__(self):
         rv = "\n===== Pre-retrofit model training summary ====="
@@ -439,6 +462,6 @@ if __name__=='__main__':
                    (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
                    (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
                    ]
-    mnv = SingleModelMnV(input_file=f,changepoints=changepoints, use_holidays=False, n_jobs=8)
+    mnv = SingleModelMnV(input_file=f,changepoints=changepoints, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
