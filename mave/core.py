@@ -44,6 +44,7 @@ class Preprocessor(object):
         headers, country, named_cols = self.process_headers()
         input_file.seek(0) # rewind the file so we don't have to open it again
         self.holidays = set([])
+        self.use_holidays = use_holidays
         if country == 'us' and use_holidays:
             for key in self.HOLIDAY_KEYS:
                 self.holidays = self.holidays.union(holidays[key])
@@ -382,12 +383,14 @@ class SingleModelMnV(object):
                                          baseline=measured_post_retrofit)
 
         if save_p:
-            pkl_name = 'model&error.pkl'
-            with open(pkl_name, 'wb') as output:
-                pickler = pickle.Pickler(output, -1)
-                #pickler.dump(self.p)
-                pickler.dump(self.m.best_model.best_estimator_)
-                pickler.dump(self.error_metrics)
+            pkl_m = 'model.pkl'
+            pkl_e = 'error.pkl'
+            f_m = open(pkl_m, 'wb')
+            f_e = open(pkl_e, 'wb')
+            pickler_m = pickle.Pickler(f_m, -1)
+            pickler_e = pickle.Pickler(f_e, -1)
+            pickler_m.dump(self.m.best_model.best_estimator_)
+            pickler_e.dump(self.error_metrics)
 
         if save_csv:
             new_date = []
@@ -398,10 +401,14 @@ class SingleModelMnV(object):
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             print X_post.shape
                 
-            if X_post.shape == (22887,8): 
-                header = 'datetime,minute,hour,dayofweek,month,holiday,outsideDB,outsideDB8,outsideDB16,measured,predicted'
+            if self.p.use_holidays: 
+                header = 'datetime,minute,hour,dayofweek,\
+                          month,holiday,outsideDB,outsideDB8,\
+                          outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,month,outsideDB,outsideDB,outsideDB16,measured,predicted'
+                header = 'datetime,minute,hour,dayofweek,\
+                          month,outsideDB,outsideDB,outsideDB16,\
+                          measured,predicted'
             post_data = np.column_stack((str_date,
                                    X_post,
                                    measured_post_retrofit,
@@ -420,7 +427,7 @@ class SingleModelMnV(object):
         return rv
  
 class DualModelMnV(object):
-    def __init__(self, input_file, **kwargs):
+    def __init__(self, input_file, save_p=False, save_csv=False, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file=input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -443,6 +450,42 @@ class DualModelMnV(object):
                                     self.m_post.best_model.predict(self.p.X_s))
         self.error_metrics = comparer.Comparer(prediction=post_model,
                                                baseline=pre_model)
+        if save_p:
+            pkl_m_pre = 'd_model_pre.pkl'
+            pkl_m_post = 'd_model_post.pkl'
+            pkl_e = 'd_error.pkl'
+            f_m_pre = open(pkl_m_pre, 'wb')
+            f_m_post = open(pkl_m_post, 'wb')
+            f_e = open(pkl_e, 'wb')
+            pickler_m_pre = pickle.Pickler(f_m_pre, -1)
+            pickler_m_post = pickle.Pickler(f_m_post, -1)
+            pickler_e = pickle.Pickler(f_e, -1)
+            pickler_m_pre.dump(self.m_pre.best_model.best_estimator_)
+            pickler_m_post.dump(self.m_post.best_model.best_estimator_)
+            pickler_e.dump(self.error_metrics)
+
+        if save_csv:
+            new_date = []
+            for j in self.p.datetimes:
+                y = j.strftime('%y-%d-%m %H:%M')
+                new_date.append(y)
+            str_date = np.array(new_date)
+            if self.p.use_holidays: 
+                header = 'datetime,minute,hour,dayofweek,\
+                          month,holiday,outsideDB,outsideDB8,\
+                          outsideDB16,pre_model,post_model'
+            else:
+                header = 'datetime,minute,hour,dayofweek,\
+                          month,outsideDB,outsideDB,outsideDB16,\
+                          pre_model,post_model'
+            post_data = np.column_stack((str_date,
+                                         self.p.X,
+                                         pre_model,
+                                         post_model,))
+            np.savetxt('d_post.csv', post_data,\
+                        delimiter=',', header= header,\
+                        fmt='%s',comments = '')
+            
     def __str__(self):
         rv = "\n===== Pre-retrofit model training summary ====="
         rv += str(self.m_pre)
@@ -464,6 +507,6 @@ if __name__=='__main__':
      #              (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
       #             (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
        #            ]
-    mnv = SingleModelMnV(input_file=f, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
+    mnv = DualModelMnV(input_file=f, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv

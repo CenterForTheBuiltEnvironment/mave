@@ -94,6 +94,17 @@ class Test(unittest.TestCase):
         ]
         mnv = SingleModelMnV(f, changepoints=changepoints)
         self.assertTrue(mnv.error_metrics.r2 > 0.3)
+    
+    def test_dualmnv(self):
+        f = open(self.TEST_PATH_2, 'Ur')
+        changepoints = [
+            (datetime(2012, 1, 29, 13, 15), Preprocessor.PRE_DATA_TAG),
+            (datetime(2012, 12, 20, 1, 15), Preprocessor.DISCARD_TAG),
+            (datetime(2013, 1, 1, 1, 15), Preprocessor.PRE_DATA_TAG),
+            (datetime(2013, 9, 14, 23, 15), Preprocessor.POST_DATA_TAG),
+        ]
+        mnv = SingleModelMnV(f, changepoints=changepoints)
+        self.assertTrue(mnv.error_metrics.r2 != 0)
 
 if __name__ == '__main__':
     unittest.main()
