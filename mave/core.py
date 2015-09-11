@@ -240,9 +240,11 @@ class Preprocessor(object):
             # to split into pre and post datasets.
             # this is useful for testing the accuracy of the mmodel methods
             # for datasets in which no retrofit is known to have occurred
-            self.X_pre_s, self.X_post_s, self.y_pre_s, self.y_post_s = \
-                    cross_validation.train_test_split(self.X_s, self.y_s, \
-                   test_size=test_size, random_state=0)
+            pre = len(self.X_s)*(1-test_size)
+            post = len(self.X_s)*test_size
+            self.X_pre_s, self.X_post_s = self.X_s[:pre], self.X_s[pre:]
+            self.y_pre_s, self.y_post_s = self.y_s[:pre], self.y_s[pre:]
+            self.datetime_pre, self.datetimes_post = self.datetimes[:pre], self.datetimes[pre:]
 
 
 class ModelAggregator(object):
@@ -389,15 +391,22 @@ class SingleModelMnV(object):
 
         if save_csv:
             new_date = []
-            for i in self.p.datetimes:
+            for i in self.p.datetimes_post:
                 x = i.strftime('%y-%d-%m %H:%M')
                 new_date.append(x)
             str_date = np.array(new_date)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            post_data = np.column_stack((X_post,
+            print X_post.shape
+                
+            if X_post.shape == (22887,8): 
+                header = 'datetime,minute,hour,dayofweek,month,holiday,outsideDB,outsideDB8,outsideDB16,measured,predicted'
+            else:
+                header = 'datetime,minute,hour,dayofweek,month,outsideDB,outsideDB,outsideDB16,measured,predicted'
+            post_data = np.column_stack((str_date,
+                                   X_post,
                                    measured_post_retrofit,
                                    predicted_post_retrofit,))
-            np.savetxt('prep.csv', post_data, delimiter=',', fmt='%s')
+            np.savetxt('post.csv', post_data, delimiter=',', header= header, fmt='%s',comments = '')
                 
 
     def __str__(self):
@@ -455,13 +464,13 @@ class TMVDualModelMnV(object):
         raise NotYetImplemented
        
 if __name__=='__main__': 
-    f = open('data/ex6.csv', 'Ur')
-    changepoints = [
-                   (datetime(2012, 1, 29, 12, 0), Preprocessor.PRE_DATA_TAG),
-                   (datetime(2012, 12, 20, 0, 0), Preprocessor.DISCARD_TAG),
-                   (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
-                   (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
-                   ]
-    mnv = SingleModelMnV(input_file=f,changepoints=changepoints, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
+    f = open('data/ex2.csv', 'Ur')
+  #  changepoints = [
+   #                (datetime(2012, 1, 29, 12, 0), Preprocessor.PRE_DATA_TAG),
+    #               (datetime(2012, 12, 20, 0, 0), Preprocessor.DISCARD_TAG),
+     #              (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
+      #             (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
+       #            ]
+    mnv = SingleModelMnV(input_file=f, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
