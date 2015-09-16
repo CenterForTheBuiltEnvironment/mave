@@ -297,36 +297,31 @@ class ModelAggregator(object):
         return hour_weekday_trainer.model
 
     def train_kneighbors(self, **kwargs):
-        kneighbors_trainer = trainers.KNeighborsTrainer(search_iterations=5,
-                                                        **kwargs)
+        kneighbors_trainer = trainers.KNeighborsTrainer(**kwargs)
         kneighbors_trainer.train(self.X, self.y)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self, **kwargs):
-        svr_trainer = trainers.SVRTrainer(\
-                                          search_iterations=5)
+        svr_trainer = trainers.SVRTrainer(**kwargs)
         svr_trainer.train(self.X, self.y)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self, **kwargs):
-        gradient_boosting_trainer = trainers.GradientBoostingTrainer(\
-                                                            search_iterations=5)
+        gradient_boosting_trainer = trainers.GradientBoostingTrainer(**kwargs)
         gradient_boosting_trainer.train(self.X, self.y)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self, **kwargs):
-        random_forest_trainer = trainers.RandomForestTrainer(\
-                                                           search_iterations=20)
+        random_forest_trainer = trainers.RandomForestTrainer(**kwargs)
         random_forest_trainer.train(self.X, self.y)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self, **kwargs):
-        extra_trees_trainer = trainers.ExtraTreesTrainer(\
-                                                         search_iterations=20)
+        extra_trees_trainer = trainers.ExtraTreesTrainer(**kwargs)
         extra_trees_trainer.train(self.X, self.y)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
@@ -509,12 +504,12 @@ class DualModelMnV(object):
  
 if __name__=='__main__': 
     f = open('data/ex2.csv', 'Ur')
-    changepoints = [
-                   ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-                   ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
-                   ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
-                   ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
-                   ]
-    mnv = DualModelMnV(input_file=f, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
+    cps = [
+           ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
+           ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+           ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
+           ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
+          ]
+    mnv = DualModelMnV(input_file=f, changepoints=cps)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv

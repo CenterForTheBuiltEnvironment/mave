@@ -44,8 +44,8 @@ if __name__=='__main__':
     # high level controls
     prs.add_argument("-n", "--n_jobs", type=int, default=-1,
                      help="number of parallel jobs (default uses max available")
-    prs.add_argument("-c", "--comp_time", type=float, default=1.0,
-                     help="roughly linear scalar for computational time")
+    prs.add_argument("-si", "--search_iterations", type=int, default=20,
+                     help="roughly linear scalar for compute time (default=20)")
     # option to provide more advanced control using a configuration file
     prs.add_argument("-conf", "--config_file", type=str, default=None,
                      help="use a configuration file for more advanced input")
