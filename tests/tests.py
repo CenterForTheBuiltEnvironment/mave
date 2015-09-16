@@ -47,13 +47,17 @@ class Test(unittest.TestCase):
     def test_changepoint_feature(self):
         f = open(self.TEST_PATH_1, 'Ur')
         changepoints = [
-            (datetime(2012, 1, 29, 13, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2012, 3, 20, 1, 15), Preprocessor.DISCARD_TAG),
-            (datetime(2013, 1, 1, 1, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2013, 2, 14, 23, 15), Preprocessor.POST_DATA_TAG),
-        ]
-        p = Preprocessor(f,use_holidays = True, changepoints=changepoints, test_size=0.2)
-        m = ModelAggregator(X=p.X_pre_s,y=p.y_pre_s,y_standardizer=p.y_standardizer)
+                       ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
+                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
+                       ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
+                       ]
+        p = Preprocessor(f,
+                         use_holidays = True, 
+                         changepoints=changepoints)
+        m = ModelAggregator(X = p.X_pre_s,
+                            y = p.y_pre_s,
+                            y_standardizer = p.y_standardizer)
         self.assertTrue(m is not None)
         self.assertTrue(len(p.X) == len(p.y)) 
         f.close()
@@ -61,7 +65,9 @@ class Test(unittest.TestCase):
     def test_model_aggregator(self):
         f = open(self.TEST_PATH_1, 'Ur')
         p = Preprocessor(f, test_size=0.5)
-        m = ModelAggregator(X=p.X_pre_s,y=p.y_pre_s,y_standardizer=p.y_standardizer)
+        m = ModelAggregator(X = p.X_pre_s,
+                            y = p.y_pre_s,
+                            y_standardizer = p.y_standardizer)
         self.assertTrue(m is not None)
 
         dummy = m.train("dummy")
@@ -87,22 +93,22 @@ class Test(unittest.TestCase):
     def test_singlemnv(self):
         f = open(self.TEST_PATH_2, 'Ur')
         changepoints = [
-            (datetime(2012, 1, 29, 13, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2012, 12, 20, 1, 15), Preprocessor.DISCARD_TAG),
-            (datetime(2013, 1, 1, 1, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2013, 9, 14, 23, 15), Preprocessor.POST_DATA_TAG),
-        ]
+                       ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
+                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
+                       ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
+                       ]
         mnv = SingleModelMnV(f, changepoints=changepoints)
         self.assertTrue(mnv.error_metrics.r2 > 0.3)
     
     def test_dualmnv(self):
         f = open(self.TEST_PATH_2, 'Ur')
         changepoints = [
-            (datetime(2012, 1, 29, 13, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2012, 12, 20, 1, 15), Preprocessor.DISCARD_TAG),
-            (datetime(2013, 1, 1, 1, 15), Preprocessor.PRE_DATA_TAG),
-            (datetime(2013, 9, 14, 23, 15), Preprocessor.POST_DATA_TAG),
-        ]
+                       ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
+                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
+                       ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
+                       ]
         mnv = SingleModelMnV(f, changepoints=changepoints)
         self.assertTrue(mnv.error_metrics.r2 != 0)
 
