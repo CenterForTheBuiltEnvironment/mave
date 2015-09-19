@@ -30,7 +30,7 @@ class Preprocessor(object):
     DISCARD_TAG = -1
     PRE_DATA_TAG = 0
     POST_DATA_TAG = 1
-    TIMESTAMP_FORMAT = "%m/%d/%y %H:%M"     
+    TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M'     
 
     def __init__(self, 
                  input_file, 
@@ -390,35 +390,31 @@ class SingleModelMnV(object):
                                          baseline=measured_post_retrofit)
 
         if save:
-            pkl_m = 'model.pkl'
-            pkl_e = 'error.pkl'
-            f_m = open(pkl_m, 'wb')
-            f_e = open(pkl_e, 'wb')
-            pickler_m = pickle.Pickler(f_m, -1)
-            pickler_e = pickle.Pickler(f_e, -1)
-            pickler_m.dump(self.m.best_model.best_estimator_)
-            pickler_e.dump(self.error_metrics)
-            new_date = []
-            for i in self.p.datetimes_post:
-                x = i.strftime('%y-%d-%m %H:%M')
-                new_date.append(x)
-            str_date = np.array(new_date)
+            pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
+                                                          self.error_metrics)
+            str_date = map(lambda arr: arr.strftime(self.p.TIMESTAMP_FORMAT),
+                           self.p.datetimes_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            print X_post.shape
-                
             if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,holiday,outsideDB,outsideDB8,\
-                          outsideDB16,measured,predicted'
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,holiday,outsideDB,outsideDB8,'+\
+                         'outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,outsideDB,outsideDB,outsideDB16,\
-                          measured,predicted'
-            post_data = np.column_stack((str_date,
-                                   X_post,
-                                   measured_post_retrofit,
-                                   predicted_post_retrofit,))
-            np.savetxt('post.csv', post_data, delimiter=',', header= header, fmt='%s',comments = '')
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,outsideDB,outsideDB,outsideDB16,'+\
+                         'measured,predicted'
+            post_data = np.column_stack((np.array(str_date),
+                                         X_post,
+                                         measured_post_retrofit,
+                                         predicted_post_retrofit,))
+            np.savetxt('post.csv', 
+                       post_data, 
+                       delimiter=',', 
+                       header= header,
+                       fmt='%s',
+                       comments = '')
                 
 
     def __str__(self):
@@ -449,39 +445,30 @@ class DualModelMnV(object):
         # in the combined pre- & post- retrofit dataset and compare the
         # two predictions to estimate savings 
         # TODO: handle different dataset (e.g. TMY data)
-        pre_model = self.p.y_standardizer.inverse_transform(\
+        pre_model = self.p.y_standardizer.inverse_transform(
                                     self.m_pre.best_model.predict(self.p.X_s))
-        post_model = self.p.y_standardizer.inverse_transform(\
+        post_model = self.p.y_standardizer.inverse_transform(
                                     self.m_post.best_model.predict(self.p.X_s))
         self.error_metrics = comparer.Comparer(prediction=post_model,
                                                baseline=pre_model)
         if save:
-            pkl_m_pre = 'd_model_pre.pkl'
-            pkl_m_post = 'd_model_post.pkl'
-            pkl_e = 'd_error.pkl'
-            f_m_pre = open(pkl_m_pre, 'wb')
-            f_m_post = open(pkl_m_post, 'wb')
-            f_e = open(pkl_e, 'wb')
-            pickler_m_pre = pickle.Pickler(f_m_pre, -1)
-            pickler_m_post = pickle.Pickler(f_m_post, -1)
-            pickler_e = pickle.Pickler(f_e, -1)
-            pickler_m_pre.dump(self.m_pre.best_model.best_estimator_)
-            pickler_m_post.dump(self.m_post.best_model.best_estimator_)
-            pickler_e.dump(self.error_metrics)
-            new_date = []
-            for j in self.p.datetimes:
-                y = j.strftime('%y-%d-%m %H:%M')
-                new_date.append(y)
-            str_date = np.array(new_date)
+            pickle.Pickler(open('model_pre.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('model_post.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
+                                                          self.error_metrics)
+            str_date = map(lambda arr: arr.strftime(self.p.TIMESTAMP_FORMAT),
+                           self.p.datetimes_post)
             if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,holiday,outsideDB,outsideDB8,\
-                          outsideDB16,pre_model,post_model'
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,holiday,outsideDB,outsideDB8,'+\
+                         'outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,outsideDB,outsideDB,outsideDB16,\
-                          pre_model,post_model'
-            post_data = np.column_stack((str_date,
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,outsideDB,outsideDB,outsideDB16,'+\
+                         'measured,predicted'
+            post_data = np.column_stack((np.array(str_date),
                                          self.p.X,
                                          pre_model,
                                          post_model,))
@@ -510,6 +497,6 @@ if __name__=='__main__':
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
-    mnv = DualModelMnV(input_file=f, changepoints=cps)
+    mnv = SingleModelMnV(input_file=f, changepoints=cps, save=True)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
