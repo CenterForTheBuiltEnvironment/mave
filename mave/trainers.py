@@ -8,7 +8,7 @@ from sklearn import cross_validation, svm, grid_search, \
 class ModelTrainer(object):
 
     def __init__(self, 
-                 search_iterations=5, 
+                 search_iterations=20, 
                  n_jobs=-1, 
                  k=10, 
                  verbose= False, 

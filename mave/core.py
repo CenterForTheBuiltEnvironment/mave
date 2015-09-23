@@ -23,7 +23,6 @@ from holidays import holidays
 
 class Preprocessor(object):
 
-    HOLIDAY_KEYS = ['USFederal']
     HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
     TARGET_COLUMN_NAMES = ['EnergyConsumption']
     IGNORE_TAG = -1
@@ -33,23 +32,29 @@ class Preprocessor(object):
     def __init__(self, 
                  input_file, 
                  use_holidays=True,
+                 use_month=False,
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
                  test_size=0.25,
                  timestamp_format='%Y-%m-%d%T%H%M',
                  datetime_column_name = 'LocalDateTime',
+                 holiday_keys = ['USFederal'],
                  **kwargs):
 
-        self.timestamp_format = '%Y-%m-%d%T%H%M'    
-        self.datetime_column_name = 'LocalDateTime'
+        self.timestamp_format = timestamp_format    
+        self.datetime_column_name = datetime_column_name
+        self.holiday_keys = holiday_keys
+        self.use_holidays = use_holidays
+        self.use_month = use_month
+
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
-        input_file.seek(0) # rewind the file so we don't have to open it again
+        input_file.seek(0) # rewind the file 
         self.holidays = set([])
         self.use_holidays = use_holidays
         if country == 'us' and use_holidays:
-            for key in self.HOLIDAY_KEYS:
+            for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
@@ -64,7 +69,6 @@ class Preprocessor(object):
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
-        
         try: 
             datetimes = map(lambda d: datetime.strptime(d,
                                                         self.timestamp_format),

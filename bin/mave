@@ -33,7 +33,6 @@ def mave(input_file=None,
         kws[name] = config.get('Strings', name)
     for name in config.options('Lists'):
         kws[name] = config.get('Lists', name).replace(' ' ,'').split(',')
-    pdb.set_trace()
     kws['changepoints'] = config.items('Changepoints')
     if not kws['changepoints']: kws['changepoints'] = None 
     # remove unused command line args (value is None)
