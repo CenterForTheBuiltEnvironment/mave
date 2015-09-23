@@ -14,16 +14,37 @@ with predictions using the model.
 from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 from datetime import datetime
 import pdb
-import argparse, logging
+import argparse, ConfigParser, logging
 
 def mave(input_file=None,
-         start_retrofit=None,
+         changepoint=None,
+         config_file=None,
          **kwargs):
+    config = ConfigParser.ConfigParser()
+    config.read(config_file)
+    kws ={}
+    for name in config.options('Booleans'):
+        kws[name] = config.getboolean('Booleans', name)
+    for name in config.options('Integers'):
+        kws[name] = config.getint('Integers', name)
+    for name in config.options('Floats'):
+        kws[name] = config.getfloat('Floats', name)
+    for name in config.options('Strings'):
+        kws[name] = config.get('Strings', name)
+    for name in config.options('Lists'):
+        kws[name] = config.get('Lists', name).replace(' ' ,'').split(',')
+    pdb.set_trace()
+    kws['changepoints'] = config.items('Changepoints')
+    if not kws['changepoints']: kws['changepoints'] = None 
+    # remove unused command line args (value is None)
+    kwargs = {key: value for (key, value) in kwargs.iteritems() if value}
+    # override config file values using command line args
+    kws.update(kwargs)
+    # if user enters a single changepoint at command line, use it 
+    if changepoint: 
+        kws['changepoints'] = [(changepoint,Preprocessor.POST_DATA_TAG)]
     f = open(input_file, 'Ur')
-    changepoints = [
-                   (start_retrofit,Preprocessor.POST_DATA_TAG)
-                   ]
-    mnv = SingleModelMnV(input_file=f,changepoints=changepoints,**kwargs)
+    mnv = SingleModelMnV(input_file=f,**kws)
     logger.info(mnv)
 
 if __name__=='__main__': 
@@ -32,8 +53,11 @@ if __name__=='__main__':
     # required argument
     prs.add_argument("input_file", 
                      help="filename for input data")
-    prs.add_argument("start_retrofit", 
+    # identification of the post-retrofit period
+    prs.add_argument("-cp", "--changepoint", 
                      help="datetime at which post-retrofit period begins")
+    prs.add_argument("-ts", "--test_size", type=float,
+                     help="fraction of the file used as post_retrofit period")
     # output controls
     prs.add_argument("-v", "--verbose", action="store_true",
                      help="increase output verbosity")
@@ -41,14 +65,16 @@ if __name__=='__main__':
                      help="print to screen as well as log file")
     prs.add_argument("-s", "--save", action="store_true",
                      help="save model and output detailed results")
-    # high level controls
-    prs.add_argument("-n", "--n_jobs", type=int, default=-1,
-                     help="number of parallel jobs (default uses max available")
-    prs.add_argument("-si", "--search_iterations", type=int, default=20,
-                     help="roughly linear scalar for compute time (default=20)")
+    # high level controls on total computation time
+    prs.add_argument("-n", "--n_jobs", type=int,
+                     help="num parallel jobs (default uses max available")
+    prs.add_argument("-k", "--k", type=int, 
+                     help="num folds in k-fold cross-validation")
+    prs.add_argument("-si", "--search_iterations", type=int, 
+                     help="num search iterations in randomized grid search")
     # option to provide more advanced control using a configuration file
-    prs.add_argument("-conf", "--config_file", type=str, default=None,
-                     help="use a configuration file for more advanced input")
+    prs.add_argument("-conf", "--config_file", type=str, default='default.cfg',
+                     help="use specified config file for more advanced input")
     args = prs.parse_args()  
     
     # set up logging to screen and file

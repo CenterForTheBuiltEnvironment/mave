@@ -24,13 +24,11 @@ from holidays import holidays
 class Preprocessor(object):
 
     HOLIDAY_KEYS = ['USFederal']
-    DATETIME_COLUMN_NAME = 'LocalDateTime'
     HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
     TARGET_COLUMN_NAMES = ['EnergyConsumption']
-    DISCARD_TAG = -1
+    IGNORE_TAG = -1
     PRE_DATA_TAG = 0
     POST_DATA_TAG = 1
-    TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M'     
 
     def __init__(self, 
                  input_file, 
@@ -39,8 +37,12 @@ class Preprocessor(object):
                  end_frac=1.0,
                  changepoints=None,
                  test_size=0.25,
+                 timestamp_format='%Y-%m-%d%T%H%M',
+                 datetime_column_name = 'LocalDateTime',
                  **kwargs):
 
+        self.timestamp_format = '%Y-%m-%d%T%H%M'    
+        self.datetime_column_name = 'LocalDateTime'
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
         input_file.seek(0) # rewind the file so we don't have to open it again
@@ -57,7 +59,7 @@ class Preprocessor(object):
                                    names=True, 
                                    missing_values='NA')
         
-        dcn = self.DATETIME_COLUMN_NAME
+        dcn = self.datetime_column_name
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
@@ -65,7 +67,7 @@ class Preprocessor(object):
         
         try: 
             datetimes = map(lambda d: datetime.strptime(d,
-                                                        self.TIMESTAMP_FORMAT),
+                                                        self.timestamp_format),
                                                         input_data[dcn])
         except ValueError:
             datetimes = map(lambda d: dateutil.parser.parse(d, dayfirst=False),
@@ -193,7 +195,7 @@ class Preprocessor(object):
                     headers.append(row)
                     country = row[i]
             if len(row)>0: 
-                if row[0] == self.DATETIME_COLUMN_NAME: 
+                if row[0] == self.datetime_column_name: 
                     named_cols = tuple(np.where(np.array(row) !='')[0])
                     break
         return headers, country, named_cols
@@ -220,7 +222,7 @@ class Preprocessor(object):
             cps = []
             for timestamp,tag in changepoints:
                 try:
-                    cp_dt = datetime.strptime(timestamp, self.TIMESTAMP_FORMAT)
+                    cp_dt = datetime.strptime(timestamp, self.timestamp_format)
                 except ValueError:
                     cp_dt = dateutil.parser.parse(timestamp, dayfirst=False)
                 cps.append((cp_dt, tag))
@@ -394,7 +396,7 @@ class SingleModelMnV(object):
                                            self.m.best_model.best_estimator_)
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                           self.error_metrics)
-            str_date = map(lambda arr: arr.strftime(self.p.TIMESTAMP_FORMAT),
+            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
                            self.p.datetimes_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             if self.p.use_holidays: 
@@ -458,7 +460,7 @@ class DualModelMnV(object):
                                            self.m.best_model.best_estimator_)
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                           self.error_metrics)
-            str_date = map(lambda arr: arr.strftime(self.p.TIMESTAMP_FORMAT),
+            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
                            self.p.datetimes_post)
             if self.p.use_holidays: 
                 header = 'datetime,minute,hour,dayofweek,'+\
@@ -493,7 +495,7 @@ if __name__=='__main__':
     f = open('data/ex2.csv', 'Ur')
     cps = [
            ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-           ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+           ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]

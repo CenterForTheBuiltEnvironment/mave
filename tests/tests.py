@@ -48,7 +48,7 @@ class Test(unittest.TestCase):
         f = open(self.TEST_PATH_1, 'Ur')
         changepoints = [
                        ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
                        ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
                        ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
                        ]
@@ -94,7 +94,7 @@ class Test(unittest.TestCase):
         f = open(self.TEST_PATH_2, 'Ur')
         changepoints = [
                        ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
                        ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
                        ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
                        ]
@@ -105,7 +105,7 @@ class Test(unittest.TestCase):
         f = open(self.TEST_PATH_2, 'Ur')
         changepoints = [
                        ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-                       ("2012/12/20 01:15", Preprocessor.DISCARD_TAG),
+                       ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
                        ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
                        ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
                        ]
