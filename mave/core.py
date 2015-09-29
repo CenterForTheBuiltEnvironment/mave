@@ -23,30 +23,38 @@ from holidays import holidays
 
 class Preprocessor(object):
 
-    HOLIDAY_KEYS = ['USFederal']
-    DATETIME_COLUMN_NAME = 'LocalDateTime'
     HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
     TARGET_COLUMN_NAMES = ['EnergyConsumption']
-    DISCARD_TAG = -1
+    IGNORE_TAG = -1
     PRE_DATA_TAG = 0
     POST_DATA_TAG = 1
 
     def __init__(self, 
                  input_file, 
                  use_holidays=True,
+                 use_month=False,
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
                  test_size=0.25,
+                 timestamp_format='%Y-%m-%d%T%H%M',
+                 datetime_column_name = 'LocalDateTime',
+                 holiday_keys = ['USFederal'],
                  **kwargs):
+
+        self.timestamp_format = timestamp_format    
+        self.datetime_column_name = datetime_column_name
+        self.holiday_keys = holiday_keys
+        self.use_holidays = use_holidays
+        self.use_month = use_month
 
         self.reader = csv.reader(input_file, delimiter=',')
         headers, country, named_cols = self.process_headers()
-        input_file.seek(0) # rewind the file so we don't have to open it again
+        input_file.seek(0) # rewind the file 
         self.holidays = set([])
         self.use_holidays = use_holidays
         if country == 'us' and use_holidays:
-            for key in self.HOLIDAY_KEYS:
+            for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
         input_data = np.genfromtxt(input_file, 
                                    delimiter=',',
@@ -55,15 +63,16 @@ class Preprocessor(object):
                                    usecols=named_cols,
                                    names=True, 
                                    missing_values='NA')
-        dcn = self.DATETIME_COLUMN_NAME
+        
+        dcn = self.datetime_column_name
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
-        
         try: 
-            datetimes = map(lambda d: datetime.strptime(d, "%m/%d/%y %H:%M"),
-                                                             input_data[dcn])
+            datetimes = map(lambda d: datetime.strptime(d,
+                                                        self.timestamp_format),
+                                                        input_data[dcn])
         except ValueError:
             datetimes = map(lambda d: dateutil.parser.parse(d, dayfirst=False),
                                                                input_data[dcn])
@@ -190,7 +199,7 @@ class Preprocessor(object):
                     headers.append(row)
                     country = row[i]
             if len(row)>0: 
-                if row[0] == self.DATETIME_COLUMN_NAME: 
+                if row[0] == self.datetime_column_name: 
                     named_cols = tuple(np.where(np.array(row) !='')[0])
                     break
         return headers, country, named_cols
@@ -213,10 +222,19 @@ class Preprocessor(object):
 
     def changepoint_feature(self, changepoints):
         if changepoints is not None:
-            cps = sorted(changepoints)
+            # convert timestamps to datetimes
+            cps = []
+            for timestamp,tag in changepoints:
+                try:
+                    cp_dt = datetime.strptime(timestamp, self.timestamp_format)
+                except ValueError:
+                    cp_dt = dateutil.parser.parse(timestamp, dayfirst=False)
+                cps.append((cp_dt, tag))
+            # sort by ascending datetime
+            cps.sort(key=lambda tup: tup[0]) 
             feat = np.zeros(len(self.datetimes))
-            for (cp_date, tag) in cps:
-                ind = np.where(self.datetimes >= cp_date)[0][0] 
+            for (cp_dt, tag) in cps:
+                ind = np.where(self.datetimes >= cp_dt)[0][0] 
                 feat[ind:] = tag
         else:
             feat = None
@@ -285,36 +303,31 @@ class ModelAggregator(object):
         return hour_weekday_trainer.model
 
     def train_kneighbors(self, **kwargs):
-        kneighbors_trainer = trainers.KNeighborsTrainer(search_iterations=5,
-                                                        **kwargs)
+        kneighbors_trainer = trainers.KNeighborsTrainer(**kwargs)
         kneighbors_trainer.train(self.X, self.y)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self, **kwargs):
-        svr_trainer = trainers.SVRTrainer(\
-                                          search_iterations=5)
+        svr_trainer = trainers.SVRTrainer(**kwargs)
         svr_trainer.train(self.X, self.y)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self, **kwargs):
-        gradient_boosting_trainer = trainers.GradientBoostingTrainer(\
-                                                            search_iterations=5)
+        gradient_boosting_trainer = trainers.GradientBoostingTrainer(**kwargs)
         gradient_boosting_trainer.train(self.X, self.y)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self, **kwargs):
-        random_forest_trainer = trainers.RandomForestTrainer(\
-                                                           search_iterations=20)
+        random_forest_trainer = trainers.RandomForestTrainer(**kwargs)
         random_forest_trainer.train(self.X, self.y)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self, **kwargs):
-        extra_trees_trainer = trainers.ExtraTreesTrainer(\
-                                                         search_iterations=20)
+        extra_trees_trainer = trainers.ExtraTreesTrainer(**kwargs)
         extra_trees_trainer.train(self.X, self.y)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
@@ -365,7 +378,7 @@ class ModelAggregator(object):
         return rv
 
 class SingleModelMnV(object):
-    def __init__(self, input_file, save_p=False, save_csv=False, **kwargs):
+    def __init__(self, input_file, save=False, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -382,38 +395,32 @@ class SingleModelMnV(object):
                                          prediction=predicted_post_retrofit,
                                          baseline=measured_post_retrofit)
 
-        if save_p:
-            pkl_m = 'model.pkl'
-            pkl_e = 'error.pkl'
-            f_m = open(pkl_m, 'wb')
-            f_e = open(pkl_e, 'wb')
-            pickler_m = pickle.Pickler(f_m, -1)
-            pickler_e = pickle.Pickler(f_e, -1)
-            pickler_m.dump(self.m.best_model.best_estimator_)
-            pickler_e.dump(self.error_metrics)
-
-        if save_csv:
-            new_date = []
-            for i in self.p.datetimes_post:
-                x = i.strftime('%y-%d-%m %H:%M')
-                new_date.append(x)
-            str_date = np.array(new_date)
+        if save:
+            pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
+                                                          self.error_metrics)
+            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
+                           self.p.datetimes_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            print X_post.shape
-                
             if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,holiday,outsideDB,outsideDB8,\
-                          outsideDB16,measured,predicted'
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,holiday,outsideDB,outsideDB8,'+\
+                         'outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,outsideDB,outsideDB,outsideDB16,\
-                          measured,predicted'
-            post_data = np.column_stack((str_date,
-                                   X_post,
-                                   measured_post_retrofit,
-                                   predicted_post_retrofit,))
-            np.savetxt('post.csv', post_data, delimiter=',', header= header, fmt='%s',comments = '')
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,outsideDB,outsideDB,outsideDB16,'+\
+                         'measured,predicted'
+            post_data = np.column_stack((np.array(str_date),
+                                         X_post,
+                                         measured_post_retrofit,
+                                         predicted_post_retrofit,))
+            np.savetxt('post.csv', 
+                       post_data, 
+                       delimiter=',', 
+                       header= header,
+                       fmt='%s',
+                       comments = '')
                 
 
     def __str__(self):
@@ -427,7 +434,7 @@ class SingleModelMnV(object):
         return rv
  
 class DualModelMnV(object):
-    def __init__(self, input_file, save_p=False, save_csv=False, **kwargs):
+    def __init__(self, input_file, save=False, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file=input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -444,41 +451,30 @@ class DualModelMnV(object):
         # in the combined pre- & post- retrofit dataset and compare the
         # two predictions to estimate savings 
         # TODO: handle different dataset (e.g. TMY data)
-        pre_model = self.p.y_standardizer.inverse_transform(\
+        pre_model = self.p.y_standardizer.inverse_transform(
                                     self.m_pre.best_model.predict(self.p.X_s))
-        post_model = self.p.y_standardizer.inverse_transform(\
+        post_model = self.p.y_standardizer.inverse_transform(
                                     self.m_post.best_model.predict(self.p.X_s))
         self.error_metrics = comparer.Comparer(prediction=post_model,
                                                baseline=pre_model)
-        if save_p:
-            pkl_m_pre = 'd_model_pre.pkl'
-            pkl_m_post = 'd_model_post.pkl'
-            pkl_e = 'd_error.pkl'
-            f_m_pre = open(pkl_m_pre, 'wb')
-            f_m_post = open(pkl_m_post, 'wb')
-            f_e = open(pkl_e, 'wb')
-            pickler_m_pre = pickle.Pickler(f_m_pre, -1)
-            pickler_m_post = pickle.Pickler(f_m_post, -1)
-            pickler_e = pickle.Pickler(f_e, -1)
-            pickler_m_pre.dump(self.m_pre.best_model.best_estimator_)
-            pickler_m_post.dump(self.m_post.best_model.best_estimator_)
-            pickler_e.dump(self.error_metrics)
-
-        if save_csv:
-            new_date = []
-            for j in self.p.datetimes:
-                y = j.strftime('%y-%d-%m %H:%M')
-                new_date.append(y)
-            str_date = np.array(new_date)
+        if save:
+            pickle.Pickler(open('model_pre.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('model_post.pkl', 'wb'), -1).dump(
+                                           self.m.best_model.best_estimator_)
+            pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
+                                                          self.error_metrics)
+            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
+                           self.p.datetimes_post)
             if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,holiday,outsideDB,outsideDB8,\
-                          outsideDB16,pre_model,post_model'
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,holiday,outsideDB,outsideDB8,'+\
+                         'outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,\
-                          month,outsideDB,outsideDB,outsideDB16,\
-                          pre_model,post_model'
-            post_data = np.column_stack((str_date,
+                header = 'datetime,minute,hour,dayofweek,'+\
+                         'month,outsideDB,outsideDB,outsideDB16,'+\
+                         'measured,predicted'
+            post_data = np.column_stack((np.array(str_date),
                                          self.p.X,
                                          pre_model,
                                          post_model,))
@@ -501,12 +497,12 @@ class DualModelMnV(object):
  
 if __name__=='__main__': 
     f = open('data/ex2.csv', 'Ur')
-  #  changepoints = [
-   #                (datetime(2012, 1, 29, 12, 0), Preprocessor.PRE_DATA_TAG),
-    #               (datetime(2012, 12, 20, 0, 0), Preprocessor.DISCARD_TAG),
-     #              (datetime(2013, 1, 5, 0, 0), Preprocessor.PRE_DATA_TAG),
-      #             (datetime(2013, 3, 1, 0, 0), Preprocessor.POST_DATA_TAG),
-       #            ]
-    mnv = DualModelMnV(input_file=f, use_holidays=False, n_jobs=8, save_p = True, save_csv = True)
+    cps = [
+           ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
+           ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
+           ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
+           ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
+          ]
+    mnv = SingleModelMnV(input_file=f, changepoints=cps, save=True)
     #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
