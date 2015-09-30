@@ -1,3 +1,12 @@
+"""
+This software downloads weather data for a given location between
+a given start and end date. It interpolates the weather data to a
+given uniform interval between those dates. 
+
+@author Taoning Wang <taoning@berkeley.edu>
+@author Paul Raftery <p.raftery@berkeley.edu>
+"""
+
 import urllib2
 import numpy as np
 import datetime, time
@@ -5,31 +14,26 @@ import dateutil.parser as dparser
 import pdb
 
 class GetWunder(object):
-    def __init__(self,\
-                 start=datetime.datetime(2012,1,1,0,0),\
-                 end=datetime.datetime(2012,2,1,0,0), **kwargs):
-        raw_data, raw_date = self.get_raw(start,end)
-        processed_data,processed_date = self.process_time(raw_date)
+    def __init__(self,
+                 start = datetime.datetime(2012,1,1,0,0),
+                 end = datetime.datetime(2012,2,1,0,0),
+                 geocode = 'SFO',
+                 interp_interval = '15m',
+                 **kwargs):
+        self.date_list = np.arange(start,
+                                   end,
+                                   dtype='datetime64[%s]'%interp_interval)
+        self.raw_data, self.raw_date = self.get_raw(start, end, geocode)
+        self.processed_data, self.processed_date = \
+                                        self.process_time(self.raw_date)
 
-    def get_raw(self,start,end,geocode='SFO'):
-        date_list = self.get_datelist(start,end)
-        self.date_list = date_list
-        date_list = date_list.astype('M8[D]')
-        date_list = sorted(set(date_list))
-        #query one day at a time
-        raw_data_list = map(lambda x: self.get_daily(geocode,x),date_list)
+    def get_raw(self, start, end, geocode):
+        dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
+        raw_data_list = map(lambda x: self.get_daily(geocode,x),dates)
         raw_data_arr = np.asarray(raw_data_list)
         raw_date = np.hstack(raw_data_arr[:,0])
         raw_data = np.hstack(raw_data_arr[:,1])
-        self.raw_data = raw_data 
         return raw_data, raw_date
-
-    def get_datelist(self, start, end, interval='15m'):
-        str_sdate = start.isoformat()
-        str_edate = end.isoformat()
-        date_list = np.arange(str_sdate,str_edate,\
-                              dtype='datetime64[%s]'%interval)
-        return date_list
 
     def get_daily(self,geocode,dt):
         year = dt.astype('datetime64[Y]').astype(int)+1970
@@ -65,9 +69,12 @@ class GetWunder(object):
         return secs
 
 if __name__ == "__main__":
-    a = datetime.datetime(2012,1,1,0,0)
-    b = datetime.datetime(2012,2,1,0,0)
-    test = GetWunder()
-    test1 = test.get_raw(a,b)
-    timetest = test.process_time(test1[1])
-    print timetest 
+    start = datetime.datetime(2012,1,1,0,0)
+    end = datetime.datetime(2012,2,1,0,0)
+    geocode = 'SFO'
+    interp_interval = '15m'
+    test = GetWunder(start, end, geocode, interp_interval)
+    print '\nTarget datetimes'
+    print test.date_list
+    print '\nInterpolated data'
+    print test.processed_data 
