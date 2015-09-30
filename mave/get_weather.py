@@ -20,20 +20,21 @@ class GetWunder(object):
                  geocode = 'SFO',
                  interp_interval = '15m',
                  **kwargs):
-        self.date_list = np.arange(start,
-                                   end,
-                                   dtype='datetime64[%s]'%interp_interval)
-        self.raw_data, self.raw_date = self.get_raw(start, end, geocode)
-        self.processed_data, self.processed_date = \
-                                        self.process_time(self.raw_date)
+        self.target_dts = np.arange(start,
+                                    end,
+                                    dtype='datetime64[%s]'%interp_interval)
+        self.raw_dts, self.raw_data = self.get_raw(start, end, geocode)
+        self.processed_data = self.process_time(self.target_dts,
+                                                self.raw_dts,
+                                                self.raw_data)
 
     def get_raw(self, start, end, geocode):
         dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
-        raw_data_list = map(lambda x: self.get_daily(geocode,x),dates)
-        raw_data_arr = np.asarray(raw_data_list)
-        raw_date = np.hstack(raw_data_arr[:,0])
-        raw_data = np.hstack(raw_data_arr[:,1])
-        return raw_data, raw_date
+        pdb.set_trace()
+        raw = np.asarray(map(lambda x: self.get_daily(geocode,x),dates))
+        raw_dts = np.hstack(raw[:,0])
+        raw_data = np.hstack(raw[:,1])
+        return raw_dts, raw_data
 
     def get_daily(self,geocode,dt):
         year = dt.astype('datetime64[Y]').astype(int)+1970
@@ -51,18 +52,18 @@ class GetWunder(object):
         time_series = np.ravel(np.core.defchararray.add(dt_str,time))
         return time_series, raw_txt['f1']
 
-    def process_time(self, time_series):
+    def process_time(self, target_dts, current_dts, data):
         func_p = np.vectorize(dparser.parse)
         func2 = np.vectorize(self.get_unixtime)
         try:
-            dt = map(lambda x: time.strptime(x,'%y-%b-%d %I:%M:%S'),time_series)
+            dt = map(lambda x: time.strptime(x,'%y-%b-%d %I:%M:%S'),current_dts)
         except:
-            dt = func_p(time_series)
+            dt = func_p(current_dts)
         dt_float = func2(dt) 
-        normal_float = (self.date_list - np.datetime64('1970-01-01T00:00:00Z'))\
+        normal_float = (target_dts - np.datetime64('1970-01-01T00:00:00Z'))\
                        /np.timedelta64(1,'s')
-        y = np.interp(normal_float,dt_float,self.raw_data)
-        return y, self.date_list
+        target_data = np.interp(normal_float,dt_float,data)
+        return target_data
 
     def get_unixtime(self,dt):
         secs = time.mktime(dt.timetuple())
@@ -75,6 +76,6 @@ if __name__ == "__main__":
     interp_interval = '15m'
     test = GetWunder(start, end, geocode, interp_interval)
     print '\nTarget datetimes'
-    print test.date_list
+    print test.target_dts
     print '\nInterpolated data'
     print test.processed_data 
