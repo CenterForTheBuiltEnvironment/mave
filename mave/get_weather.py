@@ -20,7 +20,6 @@ class GetWunder(object):
                  geocode = 'SFO',
                  interp_interval = '15m',
                  **kwargs):
-        pdb.set_trace()
         self.target_dts = np.arange(start,
                                     end,
                                     dtype='datetime64[%s]'%interp_interval)
@@ -29,9 +28,9 @@ class GetWunder(object):
                            /np.timedelta64(1,'s')
         self.timestamps, self.unix, self.data = \
                                               self.get_raw(start, end, geocode)
-        self.interp_data = np.interp(self.target_unix,
+        self.interp_data = map(lambda x:  np.interp(self.target_unix,
                                      self.unix,
-                                     self.data)
+                                     self.data[x]), range(0,3))
 
     def get_raw(self, start, end, geocode):
         # define a range of dates
@@ -39,7 +38,7 @@ class GetWunder(object):
         # download the timestamp data for that range of dates
         raw = np.asarray(map(lambda x: self.get_daily(geocode,x),dates))
         # stack each day of downloaded data
-        data = np.hstack(raw[:,1])
+        data = map(lambda x: np.hstack(raw[:,x]), list([1,2,3]))
         timestamps = np.hstack(raw[:,0])
         # convert to unix time 
         vec_parse = np.vectorize(self.str_to_unix)
@@ -51,15 +50,24 @@ class GetWunder(object):
         url = ('http://www.wunderground.com/history/airport'  
               '/%s/%s/%s/%s/DailyHistory.html?format=1')%\
               (geocode,date.year,date.month,date.day)
-        f = urllib2.urlopen(url)
+        try:
+            f = urllib2.urlopen(url)
+        except IOError:
+            time.sleep(30)
+            try:
+                f = urllib2.urlopen(url)
+            except:
+                raise "operation stopped", date
         raw = f.read().splitlines()
         raw_txt = np.genfromtxt(raw, 
                                 delimiter=',',
+                                names='time,tempF,dpF,RH',
+                                usecols=('time,tempF,dpF,RH'),
                                 dtype=None,
                                 skip_header=2)
-        ts = raw_txt['f0']
+        ts = raw_txt['time']
         time_series = np.ravel(np.core.defchararray.add(str(date)+' ',ts))
-        return time_series, raw_txt['f1']
+        return time_series, raw_txt['tempF'], raw_txt['dpF'], raw_txt['RH']
 
     def str_to_unix(self,s):
         dt = dparser.parse(s)
