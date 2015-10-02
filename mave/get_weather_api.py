@@ -21,6 +21,7 @@ class GetWunder(object):
                  zipcode = '94720',
                  key = 'd3dffb3b59309a05',
                  interp_interval = '15m',
+                 save = True,
                  **kwargs):
         self.target_dts = np.arange(start,
                                     end,
@@ -30,11 +31,17 @@ class GetWunder(object):
                            /np.timedelta64(1,'s')
         self.timestamps, self.unix, self.data = \
                                               self.get_raw(start, end, zipcode)
-        pdb.set_trace()
         self.interp_data = map(lambda x:  np.interp(self.target_unix,
                                      self.unix,
                                      self.data[:,x]), range(0,3))
-
+        if save:
+            out_data = np.column_stack(self.interp_data).astype(str)
+            out_time = np.vstack(self.target_dts).astype(str)
+            data_frame = np.column_stack([out_time,out_data])
+            header = 'time,temp,dewp,rh'
+            np.savetxt('weather_api.csv', data_frame, header=header,\
+                       delimiter=',', fmt='%s', comments= '')
+       
     def get_raw(self, start, end, zipcode):
         # define a range of dates
         dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
@@ -44,7 +51,6 @@ class GetWunder(object):
         data = np.vstack(raw)[:,1:4].astype(float)
         timestamps = np.vstack(raw)[:,0]
         # convert to unix time 
-        pdb.set_trace()
         vec_parse = np.vectorize(self.str_to_unix)
         unix = vec_parse(timestamps)
         return timestamps, unix, data
