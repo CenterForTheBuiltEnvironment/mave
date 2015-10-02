@@ -19,6 +19,7 @@ class GetWunder(object):
                  end = datetime.datetime(2012,2,1,0,0),
                  geocode = 'SFO',
                  interp_interval = '15m',
+                 save = True,
                  **kwargs):
         self.target_dts = np.arange(start,
                                     end,
@@ -31,6 +32,13 @@ class GetWunder(object):
         self.interp_data = map(lambda x:  np.interp(self.target_unix,
                                      self.unix,
                                      self.data[x]), range(0,3))
+        if save:
+            out_time = np.vstack(self.target_dts).astype(str)
+            out_data = np.column_stack(self.interp_data).astype(str)
+            data_frame = np.column_stack([out_time,out_data])
+            np.savetxt('weather.csv',data_frame,\
+                       delimiter=',',header = self.headers,\
+                       fmt ='%s',comments='')
 
     def get_raw(self, start, end, geocode):
         # define a range of dates
@@ -59,9 +67,10 @@ class GetWunder(object):
             except:
                 raise "operation stopped", date
         raw = f.read().splitlines()
+        self.headers = 'time,tempF,dpF,RH'
         raw_txt = np.genfromtxt(raw, 
                                 delimiter=',',
-                                names='time,tempF,dpF,RH',
+                                names=self.headers,
                                 usecols=('time,tempF,dpF,RH'),
                                 dtype=None,
                                 skip_header=2)
