@@ -5,6 +5,7 @@ from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 import numpy as np
 import trainers
 from comparer import Comparer
+from mave.get_weather import GetWunder
 
 class Test(unittest.TestCase):
 
@@ -111,6 +112,22 @@ class Test(unittest.TestCase):
                        ]
         mnv = SingleModelMnV(f, changepoints=changepoints)
         self.assertTrue(mnv.error_metrics.r2 != 0)
+
+    def test_getweather(self):
+        geocode = 'SFO'
+        start = datetime.datetime(2012,1,1,0,0)
+        end = datetime.datetime(2012,1,4,0,0)
+        key = 'd3dffb3b59309a05'
+        zipcode = '94128'
+        interp_interval ='15m'
+        web = GetWunder(start,end,geocode,interp_interval)
+        api = GetWunder(start,end,zipcode,key,interp_interval)
+        self.assertTrue(web.data != None)
+        self.assertTrue(web.target_dts != None)
+        self.assertTure(web.interp_data != None)
+        self.assertTrue(web.target_dts == api.target_dts)
+        self.assertTrue(web.interp_data == api.interp_data)
+        
 
 if __name__ == '__main__':
     unittest.main()
