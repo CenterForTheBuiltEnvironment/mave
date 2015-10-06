@@ -42,33 +42,38 @@ class Preprocessor(object):
                  holiday_keys = ['USFederal'],
                  dayfirst = False,
                  yearfirst = False,
+                 zipcode = None,
                  **kwargs):
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
         self.use_month = use_month
+        self.input_file = input_file
 
-        self.reader = csv.reader(input_file, delimiter=',')
-        headers, country, named_cols = self.process_headers()
-        input_file.seek(0) # rewind the file 
+        # process the headers
+        self.headers, self.named_cols = self.process_headers()
+
+        # identify holidays to use (if any)
         self.holidays = set([])
-        self.use_holidays = use_holidays
-        if country == 'us' and use_holidays:
+        if use_holidays:
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
-        input_data = np.genfromtxt(input_file, 
+        # read in the input data
+        input_data = np.genfromtxt(self.input_file, 
                                    delimiter=',',
                                    dtype=None, 
-                                   skip_header=len(headers)-1, 
-                                   usecols=named_cols,
+                                   skip_header=len(self.headers)-1, 
+                                   usecols=self.named_cols,
                                    names=True, 
                                    missing_values='NA')
-        dcn = self.datetime_column_name
+        # shrink the input data by start_frac and end_frac
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
+
+        dcn = self.datetime_column_name
         try: 
             dts = map(lambda d: datetime.strptime(d,
                                                   self.timestamp_format),
@@ -98,6 +103,21 @@ class Preprocessor(object):
                                         target_column_index)
         self.cps = self.changepoint_feature(changepoints=changepoints, **kwargs)
         self.split_dataset(test_size=test_size)
+
+    def process_headers(self):
+        # reads up to the first 100 lines of self.input_file and returns
+        # the headers and the column names 
+        reader = csv.reader(self.input_file, delimiter=',')
+        headers = []
+        for _ in range(100):
+            row = reader.next()
+            headers.append(row)
+            if len(row)>0: 
+                if row[0] == self.datetime_column_name: 
+                    named_cols = tuple(np.where(np.array(row) !='')[0])
+                    break
+        self.input_file.seek(0) # rewind the file 
+        return headers, named_cols
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -187,24 +207,6 @@ class Preprocessor(object):
             NN += N
 
         return data, datetimes
-
-    def process_headers(self):
-        # reads up to the first 100 lines of a file and returns
-        # the headers, and the country in which the building is located
-        headers = []
-        for _ in range(100):
-            row = self.reader.next()
-            headers.append(row)
-            for i, val in enumerate(row):
-                if val.lower().strip() == 'country':
-                    row = self.reader.next()
-                    headers.append(row)
-                    country = row[i]
-            if len(row)>0: 
-                if row[0] == self.datetime_column_name: 
-                    named_cols = tuple(np.where(np.array(row) !='')[0])
-                    break
-        return headers, country, named_cols
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
