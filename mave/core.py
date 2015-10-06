@@ -40,8 +40,9 @@ class Preprocessor(object):
                  timestamp_format='%Y-%m-%d%T%H%M',
                  datetime_column_name = 'LocalDateTime',
                  holiday_keys = ['USFederal'],
+                 dayfirst = False,
+                 yearfirst = False,
                  **kwargs):
-
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
         self.holiday_keys = holiday_keys
@@ -63,19 +64,20 @@ class Preprocessor(object):
                                    usecols=named_cols,
                                    names=True, 
                                    missing_values='NA')
-        
         dcn = self.datetime_column_name
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
         try: 
-            datetimes = map(lambda d: datetime.strptime(d,
-                                                        self.timestamp_format),
-                                                        input_data[dcn])
+            dts = map(lambda d: datetime.strptime(d,
+                                                  self.timestamp_format),
+                                                   input_data[dcn])
         except ValueError:
-            datetimes = map(lambda d: dateutil.parser.parse(d, dayfirst=False),
-                                                               input_data[dcn])
+            dts = map(lambda d: dateutil.parser.parse(d, 
+                                                      dayfirst=dayfirst,
+                                                      yearfirst=yearfirst),
+                                                       input_data[dcn])
         dtypes = input_data.dtype.descr
         dtypes[0] = dtypes[0][0], '|S16' # force S16 datetimes
         for i in range(1,len(dtypes)):
@@ -83,7 +85,7 @@ class Preprocessor(object):
         input_data = input_data.astype(dtypes)
         self.vals_per_hr = 0
         input_data, self.datetimes = self.interpolate_datetime(input_data,
-                                                               datetimes)
+                                                               dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(self.datetimes))
 
@@ -94,7 +96,7 @@ class Preprocessor(object):
                 self.clean_missing_data(input_data,
                                         self.datetimes,
                                         target_column_index)
-        self.cps = self.changepoint_feature(changepoints) 
+        self.cps = self.changepoint_feature(changepoints=changepoints, **kwargs)
         self.split_dataset(test_size=test_size)
 
     def clean_missing_data(self, d, datetimes, target_column_index):
@@ -220,7 +222,12 @@ class Preprocessor(object):
             rv += hol,
         return rv
 
-    def changepoint_feature(self, changepoints):
+    def changepoint_feature(self, 
+                            changepoints = None, 
+                            dayfirst = False,
+                            yearfirst = False,
+                            **kwargs
+                            ):
         if changepoints is not None:
             # convert timestamps to datetimes
             cps = []
@@ -228,7 +235,9 @@ class Preprocessor(object):
                 try:
                     cp_dt = datetime.strptime(timestamp, self.timestamp_format)
                 except ValueError:
-                    cp_dt = dateutil.parser.parse(timestamp, dayfirst=False)
+                    cp_dt = dateutil.parser.parse(timestamp, 
+                                                  dayfirst=dayfirst,
+                                                  yearfirst=yearfirst)
                 cps.append((cp_dt, tag))
             # sort by ascending datetime
             cps.sort(key=lambda tup: tup[0]) 
@@ -504,5 +513,4 @@ if __name__=='__main__':
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
     mnv = SingleModelMnV(input_file=f, changepoints=cps, save=True)
-    #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv
