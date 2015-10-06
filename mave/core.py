@@ -10,7 +10,9 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-import os, csv, pdb
+import pdb
+import csv
+import os
 import cPickle as pickle
 import dateutil.parser
 import numpy as np
@@ -18,8 +20,9 @@ import pprint
 from math import sqrt
 from datetime import datetime, timedelta
 from sklearn import preprocessing, cross_validation, metrics
-import trainers, comparer
 from holidays import holidays
+import trainers 
+import comparer
 
 class Preprocessor(object):
 
@@ -59,6 +62,7 @@ class Preprocessor(object):
         if use_holidays:
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
+
         # read in the input data
         input_data = np.genfromtxt(self.input_file, 
                                    delimiter=',',
@@ -72,7 +76,7 @@ class Preprocessor(object):
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
-
+        # parse datetimes
         dcn = self.datetime_column_name
         try: 
             dts = map(lambda d: datetime.strptime(d,
@@ -84,11 +88,12 @@ class Preprocessor(object):
                                                       yearfirst=yearfirst),
                                                        input_data[dcn])
         dtypes = input_data.dtype.descr
-        dtypes[0] = dtypes[0][0], '|S16' # force S16 datetimes
+        dtypes[0] = dtypes[0][0], '|S20' # force 20 char strings for datetimes
         for i in range(1,len(dtypes)):
-            dtypes[i] = dtypes[i][0], 'f8' # parse other data as float
+            dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
         input_data = input_data.astype(dtypes)
-        self.vals_per_hr = 0
+
+        self.vals_per_hr = 0 
         input_data, self.datetimes = self.interpolate_datetime(input_data,
                                                                dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
@@ -113,11 +118,11 @@ class Preprocessor(object):
             row = reader.next()
             headers.append(row)
             if len(row)>0: 
-                if row[0] == self.datetime_column_name: 
+                if self.datetime_column_name in row: 
                     named_cols = tuple(np.where(np.array(row) !='')[0])
                     break
         self.input_file.seek(0) # rewind the file 
-        return headers, named_cols
+        return headers, named_cols 
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
