@@ -1,5 +1,5 @@
 import unittest, pdb, sys
-from datetime import datetime
+import datetime 
 sys.path.insert(0, './mave/')
 from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 import numpy as np
@@ -117,17 +117,15 @@ class Test(unittest.TestCase):
         geocode = 'SFO'
         start = datetime.datetime(2012,1,1,0,0)
         end = datetime.datetime(2012,1,2,0,0)
-        key = 'd3dffb3b59309a05'
-        zipcode = '94128'
         interp_interval ='15m'
-        web = GetWunder(start,end,geocode,interp_interval)
-        api = GetWunder(start,end,zipcode,key,interp_interval)
+        web = GetWunder(start=start,
+                        end=end,
+                        geocode=geocode,
+                        interp_interval=interp_interval)
         self.assertTrue(web.data != None)
         self.assertAlmostEqual(web.data[0][0],46.899999999999999)  
         self.assertTrue(web.target_dts != None)
         self.assertTrue(web.interp_data != None)
-        self.assertTrue(web.target_dts == api.target_dts)
-        self.assertTrue(web.interp_data == api.interp_data)
         #TODO: manually calculate the correct interpolated data and compare
         # to .interp_data over a (very) short timeperiod to make sure 
         # this is working correctly

@@ -9,7 +9,8 @@ given uniform interval between those dates.
 
 import urllib2
 import numpy as np
-import datetime, time
+import datetime 
+import time
 import dateutil.parser as dparser
 import pdb
 import json
@@ -18,7 +19,7 @@ class GetWunder(object):
     def __init__(self,
                  start = datetime.datetime(2012,1,1,0,0),
                  end = datetime.datetime(2012,2,1,0,0),
-                 geocode = 'SFO',
+                 geocode = None,
                  zipcode = None,
                  key = None,
                  interp_interval = '15m',
