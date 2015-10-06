@@ -3,7 +3,7 @@ Mave
 Mave is a tool for automated measurement and verification. At it's most simple, 
 the aim is to read energy consumption data from before and after a retrofit 
 (pre-retrofit and post-retrofit data) and to predict how much energy the 
-retrofit saved. Mave does this by training a models to the data and using 
+retrofit saved. Mave does this by training a model to the data and using 
 the best model to predict energy consumption during a different period.
 
 
@@ -51,9 +51,8 @@ Mave has many configurable options (e.g. -v for verbose output) which can be
 passed as command line arguments or using a separate configuration file.
 The configuration file also allows many other advanced modeling options, such 
 as specifying multiple different periods in the file to use as pre-retrofit or 
-post-retrofit, or to ignore entirely. Review the wiki documentation for more 
-details. 
-
+post-retrofit, or periods to ignore entirely. Review the wiki documentation for 
+more details. 
 
 To cite this tool: 
 Paul Raftery & Tyler Hoyt, 2015, Mave: software automated Measurement and Verification. 
