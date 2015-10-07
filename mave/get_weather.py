@@ -9,7 +9,8 @@ given uniform interval between those dates.
 
 import urllib2
 import numpy as np
-import datetime, time
+import datetime 
+import time
 import dateutil.parser as dparser
 import pdb
 import json
@@ -18,7 +19,7 @@ class GetWunder(object):
     def __init__(self,
                  start = datetime.datetime(2012,1,1,0,0),
                  end = datetime.datetime(2012,2,1,0,0),
-                 geocode = 'SFO',
+                 geocode = None,
                  zipcode = None,
                  key = None,
                  interp_interval = '15m',
@@ -57,7 +58,6 @@ class GetWunder(object):
         data = map(lambda x: np.hstack(raw[:,x]), list([1,2,3]))
         timestamps = np.hstack(raw[:,0])
         # convert to unix time 
-        pdb.set_trace()
         vec_parse = np.vectorize(self.str_to_unix)
         unix = vec_parse(timestamps)
         return timestamps, unix, data
@@ -146,8 +146,12 @@ if __name__ == "__main__":
     geocode = 'SFO'
     key = None
     zipcode = None
-    interp_interval = '15m'
-    test = GetWunder(start, end, geocode, interp_interval)
+    interp_interval = '60m'
+    test = GetWunder(start=start, 
+                     end=end, 
+                     geocode=geocode, 
+                     interp_interval=interp_interval,
+                     save=True)
     print '\nTarget datetimes'
     print test.target_dts
     print '\nInterpolated data'

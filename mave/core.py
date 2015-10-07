@@ -10,7 +10,9 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-import os, csv, pdb
+import pdb
+import csv
+import os
 import cPickle as pickle
 import dateutil.parser
 import numpy as np
@@ -18,8 +20,9 @@ import pprint
 from math import sqrt
 from datetime import datetime, timedelta
 from sklearn import preprocessing, cross_validation, metrics
-import trainers, comparer
 from holidays import holidays
+import trainers 
+import comparer
 
 class Preprocessor(object):
 
@@ -40,62 +43,85 @@ class Preprocessor(object):
                  timestamp_format='%Y-%m-%d%T%H%M',
                  datetime_column_name = 'LocalDateTime',
                  holiday_keys = ['USFederal'],
+                 dayfirst = False,
+                 yearfirst = False,
+                 zipcode = None,
                  **kwargs):
-
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
         self.use_month = use_month
+        self.input_file = input_file
 
-        self.reader = csv.reader(input_file, delimiter=',')
-        headers, country, named_cols = self.process_headers()
-        input_file.seek(0) # rewind the file 
+        # process the headers
+        self.headers, self.named_cols = self.process_headers()
+
+        # identify holidays to use (if any)
         self.holidays = set([])
-        self.use_holidays = use_holidays
-        if country == 'us' and use_holidays:
+        if use_holidays:
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
-        input_data = np.genfromtxt(input_file, 
+
+        # read in the input data
+        input_data = np.genfromtxt(self.input_file, 
                                    delimiter=',',
                                    dtype=None, 
-                                   skip_header=len(headers)-1, 
-                                   usecols=named_cols,
+                                   skip_header=len(self.headers)-1, 
+                                   usecols=self.named_cols,
                                    names=True, 
                                    missing_values='NA')
-        
-        dcn = self.datetime_column_name
+        # shrink the input data by start_frac and end_frac
         input_data_L = len(input_data)
         start_index = int(start_frac * input_data_L)
         end_index = int(end_frac * input_data_L)
         input_data = input_data[ start_index : end_index ]
+        # parse datetimes
+        dcn = self.datetime_column_name
         try: 
-            datetimes = map(lambda d: datetime.strptime(d,
-                                                        self.timestamp_format),
-                                                        input_data[dcn])
+            dts = map(lambda d: datetime.strptime(d,
+                                                  self.timestamp_format),
+                                                   input_data[dcn])
         except ValueError:
-            datetimes = map(lambda d: dateutil.parser.parse(d, dayfirst=False),
-                                                               input_data[dcn])
+            dts = map(lambda d: dateutil.parser.parse(d, 
+                                                      dayfirst=dayfirst,
+                                                      yearfirst=yearfirst),
+                                                       input_data[dcn])
         dtypes = input_data.dtype.descr
-        dtypes[0] = dtypes[0][0], '|S16' # force S16 datetimes
+        dtypes[0] = dtypes[0][0], '|S20' # force 20 char strings for datetimes
         for i in range(1,len(dtypes)):
-            dtypes[i] = dtypes[i][0], 'f8' # parse other data as float
+            dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
         input_data = input_data.astype(dtypes)
-        self.vals_per_hr = 0
-        input_data, self.datetimes = self.interpolate_datetime(input_data,
-                                                               datetimes)
+
+        input_data, dts, self.interval_seconds, self.vals_per_hr = \
+                                    self.standardize_datetimes(input_data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
-        d = np.column_stack(vectorized_process_datetime(self.datetimes))
+        d = np.column_stack(vectorized_process_datetime(dts))
 
         # add other (non datetime related) input features
         input_data, target_column_index = self.append_input_features(\
                                                                 input_data, d)
-        self.X, self.y, self.datetimes = \
+        self.X, self.y, self.dts = \
                 self.clean_missing_data(input_data,
-                                        self.datetimes,
+                                        dts,
                                         target_column_index)
-        self.cps = self.changepoint_feature(changepoints) 
+        self.cps = self.changepoint_feature(changepoints=changepoints, **kwargs)
         self.split_dataset(test_size=test_size)
+
+    def process_headers(self):
+        # reads up to the first 100 lines of self.input_file and returns
+        # the headers and the column names 
+        reader = csv.reader(self.input_file, delimiter=',')
+        headers = []
+        for _ in range(100):
+            row = reader.next()
+            headers.append(row)
+            if len(row)>0: 
+                if self.datetime_column_name in row: 
+                    named_cols = tuple(np.where(np.array(row) !='')[0])
+                    break
+        self.input_file.seek(0) # rewind the file 
+        return headers, named_cols 
 
     def clean_missing_data(self, d, datetimes, target_column_index):
         # remove any row with missing data
@@ -147,62 +173,58 @@ class Preprocessor(object):
                 d = np.column_stack( (d, data[s]) )
         return d, split
 
-    def interpolate_datetime(self, data, datetimes):
-        start = datetimes[0]
-        second_val = datetimes[1]
-        end = datetimes[-1]
-
+    def standardize_datetimes(self, data, dts):
         # calculate the interval between datetimes
-        interval = second_val - start
-        self.vals_per_hr = 3600 / interval.seconds
-        assert (3600 % interval.seconds) == 0,  \
-            'Interval between datetimes must divide evenly into an hour'
-
-        # check to ensure that the timedelta between datetimes is
-        # uniform through out the array
+        intervals = [int((dts[i]-dts[i-1]).seconds) for i in range(1, len(dts))]
+        median_interval = int(np.median(intervals))
+        vals_per_hr = 3600 / median_interval
+        assert (3600 % median_interval) == 0,  \
+            'Median interval between datetimes must divide evenly into an hour'
+        median_interval_minutes = median_interval/60
+        assert (median_interval % 60) == 0,  \
+            'Median interval between datetimes must be an even num of minutes'
+        # round time datetimes according to the median_interval
+        vectorized_round_datetime = np.vectorize(self.round_datetime)
+        dts = vectorized_round_datetime(dts, median_interval_minutes)
+        # remove duplicates and sorts datetimes
+        dts, inds = np.unique(dts, return_index = True) 
+        data = data[inds]
+        # updates intervals after datetime rounding and duplicate removal
+        intervals = [int((dts[i]-dts[i-1]).seconds) for i in range(1, len(dts))]
         row_length = len(data[0])
-        diffs = np.diff(datetimes)
-        gaps = np.greater(diffs, interval)
+        # add datetimes and nans when there are gaps (based on median interval)
+        gaps = np.greater(intervals, median_interval)
         gap_inds = np.nonzero(gaps)[0] # contains the left indices of the gaps
-        NN = 0 # accumulate offset of gap indices as you add entries
+        NN = 0 # accumulate offset of gap indices as entries are added
         for i in gap_inds:
-            gap = diffs[i]
-            gap_start = datetimes[i + NN]
-            gap_end = datetimes[i + NN + 1]
-            N = gap.seconds / interval.seconds - 1 # number of entries to add
+            gap = intervals[i]
+            gap_start = dts[i + NN]
+            gap_end = dts[i + NN + 1]
+            N = gap / median_interval - 1 # number of entries to add
             for j in range(1, N+1):
-                new_dt = gap_start + j * interval
+                new_dt = gap_start + j*timedelta(seconds=median_interval) 
                 new_row = np.array([(new_dt,) + (np.nan,) * (row_length - 1)], 
                                                          dtype=data.dtype)
                 #TODO: Logs 
                 #print ("-- Missing datetime interval between \
                 #         %s and %s" % (gap_start, gap_end))
                 data = np.append(data, new_row)
-                datetimes = np.append(datetimes, new_dt) 
-                datetimes_ind = np.argsort(datetimes) 
-                data = data[datetimes_ind]
-            datetimes = datetimes[datetimes_ind] # sorts datetimes
+                dts = np.append(dts, new_dt) 
+                dts_ind = np.argsort(dts) 
+                data = data[dts_ind]
+            dts = dts[dts_ind] # sorts datetimes
             NN += N
+        return data, dts, median_interval, vals_per_hr
 
-        return data, datetimes
-
-    def process_headers(self):
-        # reads up to the first 100 lines of a file and returns
-        # the headers, and the country in which the building is located
-        headers = []
-        for _ in range(100):
-            row = self.reader.next()
-            headers.append(row)
-            for i, val in enumerate(row):
-                if val.lower().strip() == 'country':
-                    row = self.reader.next()
-                    headers.append(row)
-                    country = row[i]
-            if len(row)>0: 
-                if row[0] == self.datetime_column_name: 
-                    named_cols = tuple(np.where(np.array(row) !='')[0])
-                    break
-        return headers, country, named_cols
+    def round_datetime(self, dt, interval):
+        # rounds a datetime to a given minute interval
+        discard = timedelta(minutes=dt.minute % interval,
+                            seconds=dt.second, 
+                            microseconds = dt.microsecond)
+        dt -= discard
+        if discard >= timedelta(minutes=interval/2):
+            dt += timedelta(minutes=interval)
+        return dt
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
@@ -220,7 +242,12 @@ class Preprocessor(object):
             rv += hol,
         return rv
 
-    def changepoint_feature(self, changepoints):
+    def changepoint_feature(self, 
+                            changepoints = None, 
+                            dayfirst = False,
+                            yearfirst = False,
+                            **kwargs
+                            ):
         if changepoints is not None:
             # convert timestamps to datetimes
             cps = []
@@ -228,13 +255,15 @@ class Preprocessor(object):
                 try:
                     cp_dt = datetime.strptime(timestamp, self.timestamp_format)
                 except ValueError:
-                    cp_dt = dateutil.parser.parse(timestamp, dayfirst=False)
+                    cp_dt = dateutil.parser.parse(timestamp, 
+                                                  dayfirst=dayfirst,
+                                                  yearfirst=yearfirst)
                 cps.append((cp_dt, tag))
             # sort by ascending datetime
             cps.sort(key=lambda tup: tup[0]) 
-            feat = np.zeros(len(self.datetimes))
+            feat = np.zeros(len(self.dts))
             for (cp_dt, tag) in cps:
-                ind = np.where(self.datetimes >= cp_dt)[0][0] 
+                ind = np.where(self.dts >= cp_dt)[0][0] 
                 feat[ind:] = tag
         else:
             feat = None
@@ -251,8 +280,8 @@ class Preprocessor(object):
            
             self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
             self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
-            self.datetimes_pre, self.datetimes_post = \
-                 self.datetimes[pre_inds], self.datetimes[post_inds]
+            self.dts_pre, self.dts_post = \
+                 self.dts[pre_inds], self.dts[post_inds]
         else:
             # handle case where no changepoint is given
             # by using a predefined fraction of the dataset
@@ -263,7 +292,7 @@ class Preprocessor(object):
             post = len(self.X_s)*test_size
             self.X_pre_s, self.X_post_s = self.X_s[:pre], self.X_s[pre:]
             self.y_pre_s, self.y_post_s = self.y_s[:pre], self.y_s[pre:]
-            self.datetime_pre, self.datetimes_post = self.datetimes[:pre], self.datetimes[pre:]
+            self.dts_pre, self.dts_post = self.dts[:pre], self.dts[pre:]
 
 
 class ModelAggregator(object):
@@ -401,7 +430,7 @@ class SingleModelMnV(object):
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                           self.error_metrics)
             str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
-                           self.p.datetimes_post)
+                           self.p.dts_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             if self.p.use_holidays: 
                 header = 'datetime,minute,hour,dayofweek,'+\
@@ -465,7 +494,7 @@ class DualModelMnV(object):
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                           self.error_metrics)
             str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
-                           self.p.datetimes_post)
+                           self.p.dts_post)
             if self.p.use_holidays: 
                 header = 'datetime,minute,hour,dayofweek,'+\
                          'month,holiday,outsideDB,outsideDB8,'+\
@@ -504,5 +533,4 @@ if __name__=='__main__':
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
     mnv = SingleModelMnV(input_file=f, changepoints=cps, save=True)
-    #mnv = DualModelMnV(input_file=f,changepoints=changepoints)
     print mnv

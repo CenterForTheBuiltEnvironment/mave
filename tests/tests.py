@@ -1,5 +1,5 @@
 import unittest, pdb, sys
-from datetime import datetime
+import datetime 
 sys.path.insert(0, './mave/')
 from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 import numpy as np
@@ -129,7 +129,10 @@ class Test(unittest.TestCase):
         f = open(self.WEATHER_PATH, 'Ur')
         txt = np.genfromtxt(f.read().splitlines(), delimiter=',',dtype = None)
         dat = txt['f5'][4:7]
+        self.assertTrue(web.data != None)
+        self.assertAlmostEqual(web.data[0][0],46.899999999999999)  
         self.assertTrue(web.target_dts != None)
+        self.assertTrue(web.interp_data != None)
         self.assertTrue(web.interp_data[0][3:6].all() == dat.all())
         self.assertTrue(api.interp_data[0][3:6].all() == dat.all())
         
