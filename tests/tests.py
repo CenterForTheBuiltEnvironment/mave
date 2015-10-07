@@ -5,7 +5,7 @@ from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 import numpy as np
 import trainers
 from comparer import Comparer
-from mave.get_weather import GetWunder
+from get_weather import GetWunder
 
 class Test(unittest.TestCase):
 
@@ -13,6 +13,7 @@ class Test(unittest.TestCase):
     TEST_PATH_1 = "./mave/data/ex1.csv"
     TEST_PATH_2 = "./mave/data/ex2.csv"
     TEST_PATH_6 = "./mave/data/ex6.csv"
+    WEATHER_PATH = "./mave/data/weather_test.csv"
 
     def test_success(self):
         self.assertTrue(True)
@@ -115,18 +116,22 @@ class Test(unittest.TestCase):
 
     def test_getweather(self):
         geocode = 'SFO'
-        start = datetime.datetime(2012,1,1,0,0)
-        end = datetime.datetime(2012,1,4,0,0)
+        start = datetime(2012,1,1,0,0)
+        end = datetime(2012,1,3,0,0)
         key = 'd3dffb3b59309a05'
         zipcode = '94128'
         interp_interval ='15m'
-        web = GetWunder(start,end,geocode,interp_interval)
-        api = GetWunder(start,end,zipcode,key,interp_interval)
-        self.assertTrue(web.data != None)
+        web = GetWunder(start,end,geocode,zipcode,\
+                        key,interp_interval,save=False)
+        geocode = None
+        api = GetWunder(start,end,geocode,zipcode,\
+                        key,interp_interval,save=False)
+        f = open(self.WEATHER_PATH, 'Ur')
+        txt = np.genfromtxt(f.read().splitlines(), delimiter=',',dtype = None)
+        dat = txt['f5'][4:7]
         self.assertTrue(web.target_dts != None)
-        self.assertTure(web.interp_data != None)
-        self.assertTrue(web.target_dts == api.target_dts)
-        self.assertTrue(web.interp_data == api.interp_data)
+        self.assertTrue(web.interp_data[0][3:6].all() == dat.all())
+        self.assertTrue(api.interp_data[0][3:6].all() == dat.all())
         
 
 if __name__ == '__main__':
