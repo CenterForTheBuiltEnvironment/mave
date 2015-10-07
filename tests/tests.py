@@ -5,7 +5,7 @@ from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 import numpy as np
 import trainers
 from comparer import Comparer
-from get_weather import GetWunder
+from get_weather import GetWeather
 
 class Test(unittest.TestCase):
 
@@ -121,10 +121,10 @@ class Test(unittest.TestCase):
         key = 'd3dffb3b59309a05'
         zipcode = '94128'
         interp_interval ='15m'
-        web = GetWunder(start,end,geocode,zipcode,\
+        web = GetWeather(start,end,geocode,zipcode,\
                         key,interp_interval,save=False)
         geocode = None
-        api = GetWunder(start,end,geocode,zipcode,\
+        api = GetWeather(start,end,geocode,zipcode,\
                         key,interp_interval,save=False)
         f = open(self.WEATHER_PATH, 'Ur')
         txt = np.genfromtxt(f.read().splitlines(), delimiter=',',dtype = None)
