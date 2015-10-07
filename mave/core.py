@@ -46,6 +46,7 @@ class Preprocessor(object):
                  dayfirst = False,
                  yearfirst = False,
                  zipcode = None,
+                 remove_outliers = 'SingleValue',
                  **kwargs):
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
@@ -64,47 +65,50 @@ class Preprocessor(object):
                 self.holidays = self.holidays.union(holidays[key])
 
         # read in the input data
-        input_data = np.genfromtxt(self.input_file, 
-                                   delimiter=',',
-                                   dtype=None, 
-                                   skip_header=len(self.headers)-1, 
-                                   usecols=self.named_cols,
-                                   names=True, 
-                                   missing_values='NA')
+        data = np.genfromtxt(self.input_file, 
+                             delimiter=',',
+                             dtype=None, 
+                             skip_header=len(self.headers)-1, 
+                             usecols=self.named_cols,
+                             names=True, 
+                             missing_values='NA')
         # shrink the input data by start_frac and end_frac
-        input_data_L = len(input_data)
-        start_index = int(start_frac * input_data_L)
-        end_index = int(end_frac * input_data_L)
-        input_data = input_data[ start_index : end_index ]
+        data_L = len(data)
+        start_index = int(start_frac * data_L)
+        end_index = int(end_frac * data_L)
+        data = data[ start_index : end_index ]
         # parse datetimes
         dcn = self.datetime_column_name
         try: 
             dts = map(lambda d: datetime.strptime(d,
                                                   self.timestamp_format),
-                                                   input_data[dcn])
+                                                   data[dcn])
         except ValueError:
             dts = map(lambda d: dateutil.parser.parse(d, 
                                                       dayfirst=dayfirst,
                                                       yearfirst=yearfirst),
-                                                       input_data[dcn])
-        dtypes = input_data.dtype.descr
+                                                       data[dcn])
+        dtypes = data.dtype.descr
         dtypes[0] = dtypes[0][0], '|S20' # force 20 char strings for datetimes
         for i in range(1,len(dtypes)):
             dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
-        input_data = input_data.astype(dtypes)
+        data = data.astype(dtypes)
 
-        input_data, dts, self.interval_seconds, self.vals_per_hr = \
-                                    self.standardize_datetimes(input_data, dts)
+        data, dts, self.interval_seconds, self.vals_per_hr = \
+            self.standardize_datetimes(data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
 
         # add other (non datetime related) input features
-        input_data, target_column_index = self.append_input_features(\
-                                                                input_data, d)
+        data, target_col_ind = self.append_input_features(data, d)
+        # remove data
         self.X, self.y, self.dts = \
-                self.clean_missing_data(input_data,
-                                        dts,
-                                        target_column_index)
+            self.clean_data(data, dts, target_col_ind, **kwargs)
+        # ensure that the datetimes match the input features
+        if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() or \
+            (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
+            raise Error(" - The datetimes in the datetimes array do not \
+                match those in the input features array")
         self.cps = self.changepoint_feature(changepoints=changepoints, **kwargs)
         self.split_dataset(test_size=test_size)
 
@@ -123,24 +127,31 @@ class Preprocessor(object):
         self.input_file.seek(0) # rewind the file 
         return headers, named_cols 
 
-    def clean_missing_data(self, d, datetimes, target_column_index):
-        # remove any row with missing data
-        # filter the datetimes and data arrays so the match up
-        keep_inds = ~np.isnan(d).any(axis=1)
+    def clean_data(self,
+                   data, 
+                   datetimes, 
+                   target_col_ind, 
+                   remove_outliers='SingleValue'):
+        # remove any row with missing data, identified by nan
+        keep_inds = ~np.isnan(data).any(axis=1)
         num_to_del = len(keep_inds[~keep_inds])
         if num_to_del > 0: 
             datetimes = datetimes[keep_inds]
-            d = d[keep_inds]
-
-        if (d[:,0] != np.array([dt.minute for dt in datetimes])).any() or \
-            (d[:,1] != np.array([dt.hour for dt in datetimes])).any():
-            raise Error(" - The datetimes in the datetimes array do not \
-                match those in the input features array")
-
-        # split into input and target arrays
-        target_data = d[:,target_column_index]
-        X = np.hstack((d[:,:target_column_index], d[:,target_column_index+1:]))
-        return X, target_data, datetimes
+            data = data[keep_inds]
+        # split the data into input and target arrays
+        y = data[:,target_col_ind]
+        X = np.hstack((data[:,:target_col_ind], data[:,target_col_ind+1:]))
+        # remove outliers
+        if remove_outliers == 'SingleValue':
+            keep_inds = self.is_single_outlier_value(y, med_diff_multiple=100)
+        elif remove_outliers == 'MultipleValues':
+            keep_inds = self.is_outlier(y, threshold=10)
+        else:
+            keep_inds = np.ones(len(y),dtype=bool)
+        X = X[keep_inds]
+        y = y[keep_inds]
+        datetimes = datetimes[keep_inds]
+        return X, y, datetimes
 
     def append_input_features(self, data, d0, historical_data_points=2):
         column_names = data.dtype.names[1:] # no need to include datetime column
@@ -172,6 +183,38 @@ class Preprocessor(object):
             if s in column_names:
                 d = np.column_stack( (d, data[s]) )
         return d, split
+
+    def is_single_outlier_value(self, y, med_diff_multiple=100):
+        # id 2 highest and lowest values (ignoring nans)
+        # id data as outlier if the min or max is very far 
+        # (> 100 times) from the difference between the next 2 closest values
+        keep_inds = np.ones(len(y), dtype=bool) 
+        mx = np.amax(y)
+        mn = np.amin(y)
+        median_diff = abs(np.median(np.diff(y)))
+        diff_to_max = np.diff(y[np.argpartition(y, -2)][-2:])[0]
+        if abs(diff_to_max) > med_diff_multiple*median_diff:
+            keep_inds = y < mx
+        diff_to_min = np.diff(y[np.argpartition(y, 2)][:2])[0]
+        if abs(diff_to_min) > med_diff_multiple*median_diff:
+            keep_inds = y > mn
+        return keep_inds
+
+    def is_outlier(self, y, threshold=3.5):
+        # outliers detected based on median absolute deviation according to
+        # Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
+        # Handle Outliers", The ASQC Basic References in Quality Control:
+        # Statistical Techniques, Edward F. Mykytka, Ph.D., Editor.
+        if len(y.shape) == 1:
+            y = y[:,None]
+        median = np.median(y, axis=0)
+        diff = np.sum((y - median)**2, axis=-1)
+        diff = np.sqrt(diff)
+        med_abs_deviation = np.median(diff)
+        modified_z_score = 0.6745 * diff / med_abs_deviation
+        keep_inds = modified_z_score <= threshold
+        return keep_inds
+
 
     def standardize_datetimes(self, data, dts):
         # calculate the interval between datetimes
