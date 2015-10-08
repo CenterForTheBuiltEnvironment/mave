@@ -14,7 +14,7 @@ import dateutil.parser as dparser
 import pdb
 import json
 
-class GetWeather(object):
+class Weather(object):
     def __init__(self,
                  start = datetime.datetime(2012,1,1,0,0),
                  end = datetime.datetime(2012,2,1,0,0),
