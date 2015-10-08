@@ -103,7 +103,7 @@ class Preprocessor(object):
         data, target_col_ind = self.append_input_features(data, d)
         # remove data
         self.X, self.y, self.dts = \
-            self.clean_data(data, dts, target_col_ind, **kwargs)
+            self.clean_data(data, dts, target_col_ind, remove_outliers)
         # ensure that the datetimes match the input features
         if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() or \
             (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
@@ -191,7 +191,8 @@ class Preprocessor(object):
         keep_inds = np.ones(len(y), dtype=bool) 
         mx = np.amax(y)
         mn = np.amin(y)
-        median_diff = abs(np.median(np.diff(y)))
+        median_diff = np.median(abs(np.diff(y)))
+        #TODO: does not work for multiple isntances of the same outlier value
         diff_to_max = np.diff(y[np.argpartition(y, -2)][-2:])[0]
         if abs(diff_to_max) > med_diff_multiple*median_diff:
             keep_inds = y < mx
@@ -200,7 +201,7 @@ class Preprocessor(object):
             keep_inds = y > mn
         return keep_inds
 
-    def is_outlier(self, y, threshold=3.5):
+    def is_outlier(self, y, threshold=10):
         # outliers detected based on median absolute deviation according to
         # Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
         # Handle Outliers", The ASQC Basic References in Quality Control:
