@@ -14,36 +14,47 @@ with predictions using the model.
 from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
 from datetime import datetime
 import pdb
+import os.path
 import argparse, ConfigParser, logging
 
 def mave(input_file=None,
          changepoint=None,
+         test_size=0.25,
          config_file=None,
          **kwargs):
     config = ConfigParser.ConfigParser()
-    config.read(config_file)
-    kws ={}
-    for name in config.options('Booleans'):
-        kws[name] = config.getboolean('Booleans', name)
-    for name in config.options('Integers'):
-        kws[name] = config.getint('Integers', name)
-    for name in config.options('Floats'):
-        kws[name] = config.getfloat('Floats', name)
-    for name in config.options('Strings'):
-        kws[name] = config.get('Strings', name)
-    for name in config.options('Lists'):
-        kws[name] = config.get('Lists', name).replace(' ' ,'').split(',')
-    kws['changepoints'] = config.items('Changepoints')
-    if not kws['changepoints']: kws['changepoints'] = None 
-    # remove unused command line args (value is None)
-    kwargs = {key: value for (key, value) in kwargs.iteritems() if value}
-    # override config file values using command line args
-    kws.update(kwargs)
-    # if user enters a single changepoint at command line, use it 
-    if changepoint: 
-        kws['changepoints'] = [(changepoint,Preprocessor.POST_DATA_TAG)]
-    f = open(input_file, 'Ur')
-    mnv = SingleModelMnV(input_file=f,**kws)
+    if os.path.isfile(config_file):
+        config.read(config_file)
+        kws ={}
+        for name in config.options('Booleans'):
+            kws[name] = config.getboolean('Booleans', name)
+        for name in config.options('Integers'):
+            kws[name] = config.getint('Integers', name)
+        for name in config.options('Floats'):
+            kws[name] = config.getfloat('Floats', name)
+        for name in config.options('Strings'):
+            kws[name] = config.get('Strings', name)
+        for name in config.options('Lists'):
+            kws[name] = config.get('Lists', name).replace(' ' ,'').split(',')
+        kws['changepoints'] = config.items('Changepoints')
+        if not kws['changepoints']: kws['changepoints'] = None 
+        # remove unused command line args (value is None)
+        kwargs = {key: value for (key, value) in kwargs.iteritems() if value}
+        # override config file values using command line args
+        kws.update(kwargs)
+        # if user enters a single changepoint at command line, use it 
+        if changepoint: 
+            kws['changepoints'] = [(changepoint,Preprocessor.POST_DATA_TAG)]
+        f = open(input_file, 'Ur')
+        mnv = SingleModelMnV(input_file=f,**kws)
+    else:
+        print '\nUsing default settings as no valid config file was found\n' 
+        f = open(input_file, 'Ur')
+        if changepoint: 
+            cp = [(changepoint,Preprocessor.POST_DATA_TAG)]
+            mnv = SingleModelMnV(input_file=f,changepoints=cp)
+        else:
+            mnv = SingleModelMnV(input_file=f,test_size=test_size)
     logger.info(mnv)
 
 if __name__=='__main__': 
