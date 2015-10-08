@@ -23,9 +23,9 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.33',
+    version='0.0.35',
 
-    description='Library for Measurement and Verification',
+    description='Package for Measurement and Verification',
     long_description=long_description,
 
     # The project's main homepage.
@@ -44,7 +44,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
 
         # Indicate who your project is intended for
         'Intended Audience :: Education',
@@ -101,9 +101,7 @@ setup(
             'data/ex5.csv',
             'data/ex6.csv',
             'data/ex7.csv',
-            'data/ex8.csv',
-            'data/ex9_Predict.csv',
-            'data/ex9_Baseline.csv'
+            'data/ex8.csv'
         ],
     },
 
