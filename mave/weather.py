@@ -28,6 +28,9 @@ class Weather(object):
                                     end,
                                     dtype='datetime64[%s]'%interp_interval)\
                                     .astype(datetime.datetime)
+        diff = start-self.target_dts[0]
+        self.target_dts = self.target_dts+diff
+        pdb.set_trace()
         unix_vec = np.vectorize(self.str_to_unix_api)
         self.target_unix = unix_vec(self.target_dts)
         if geocode != None:
@@ -145,13 +148,13 @@ class Weather(object):
 
 
 if __name__ == "__main__":
-    start = datetime.datetime(2012,1,1,0,0)
+    start = datetime.datetime(2012,1,1,0,13)
     end = datetime.datetime(2012,1,3,0,0)
     geocode = 'SFO'
     key = 'd3dffb3b59309a05'
     zipcode = '94720'
     interp_interval = '15m'
-    test = GetWeather(start, end, geocode,zipcode,key, interp_interval)
+    test = Weather(start, end, geocode,zipcode,key, interp_interval)
     print '\nTarget datetimes'
     print test.target_dts
     print '\nInterpolated data'
