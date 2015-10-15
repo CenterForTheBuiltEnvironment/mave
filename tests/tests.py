@@ -38,17 +38,21 @@ class Test(unittest.TestCase):
 
     def test_preprocessor_remove_outliers(self):
         f = open(self.TEST_PATH_2, 'Ur')
-        p_out = Preprocessor(f, end_frac=0.05, remove_outliers=False)
+        p = Preprocessor(f, end_frac=0.05, remove_outliers=False)
         f.close()
         f = open(self.TEST_PATH_2, 'Ur')
-        p = Preprocessor(f, end_frac=0.05, remove_outliers='MultipleValues')
-        self.assertTrue(p_out is not None)
-        self.assertTrue(p is not None)
-        self.assertTrue(p.X.shape == (4590,8))
-        self.assertTrue(p_out.X.shape == (4593,8))
-        self.assertTrue(len(p.X) == len(p.y)) 
-        self.assertTrue(len(p.y) == len(p.dts))
-        self.assertTrue(int(p.X[1000][0]) == p.dts[1000].minute)
+        pm = Preprocessor(f, end_frac=0.05, remove_outliers='MultipleValues')
+        f.close()
+        f = open(self.TEST_PATH_2, 'Ur')
+        ps = Preprocessor(f, end_frac=0.05, remove_outliers='SingleValue')
+        for a in (p,pm,ps):
+            self.assertTrue(a is not None)
+            self.assertTrue(len(a.X) == len(a.y)) 
+            self.assertTrue(len(a.y) == len(a.dts))
+            self.assertTrue(int(a.X[1000][0]) == a.dts[1000].minute)
+        self.assertTrue(p.X.shape == (4593,8))
+        self.assertTrue(pm.X.shape == (4590,8))
+        self.assertTrue(ps.X.shape == (4591,8))
         f.close()
         
     def test_changepoint_feature(self):

@@ -34,6 +34,7 @@ class Preprocessor(object):
 
     def __init__(self, 
                  input_file, 
+                 verbose=False,
                  use_holidays=True,
                  use_month=False,
                  start_frac=0.0,
@@ -54,7 +55,7 @@ class Preprocessor(object):
         self.use_holidays = use_holidays
         self.use_month = use_month
         self.input_file = input_file
-
+        self.verbose = verbose
         # process the headers
         self.headers, self.named_cols = self.process_headers()
 
@@ -143,11 +144,16 @@ class Preprocessor(object):
         X = np.hstack((data[:,:target_col_ind], data[:,target_col_ind+1:]))
         # remove outliers
         if remove_outliers == 'SingleValue':
-            keep_inds = self.is_single_outlier_value(y, med_diff_multiple=100)
+            keep_inds = self.is_single_value_outlier(y, med_diff_multiple=100)
         elif remove_outliers == 'MultipleValues':
             keep_inds = self.is_outlier(y, threshold=10)
         else:
             keep_inds = np.ones(len(y),dtype=bool)
+        if self.verbose: 
+            outliers = y[~keep_inds]
+            outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
+            print '\nRemoved the following %s outlier values:\n%s'%\
+                  (len(outliers),zip(outlier_ts,outliers))
         X = X[keep_inds]
         y = y[keep_inds]
         datetimes = datetimes[keep_inds]
@@ -184,19 +190,20 @@ class Preprocessor(object):
                 d = np.column_stack( (d, data[s]) )
         return d, split
 
-    def is_single_outlier_value(self, y, med_diff_multiple=100):
+    def is_single_value_outlier(self, y, med_diff_multiple=100):
         # id 2 highest and lowest values (ignoring nans)
-        # id data as outlier if the min or max is very far 
-        # (> 100 times) from the difference between the next 2 closest values
+        # id a single value as an outlier if the min or max is very far 
+        # (> 100 times the median difference between values)
+        # from the next nearest unique value
         keep_inds = np.ones(len(y), dtype=bool) 
         mx = np.amax(y)
         mn = np.amin(y)
         median_diff = np.median(abs(np.diff(y)))
-        #TODO: does not work for multiple isntances of the same outlier value
-        diff_to_max = np.diff(y[np.argpartition(y, -2)][-2:])[0]
+        y_unique = np.unique(y)
+        diff_to_max = np.diff(y_unique[np.argpartition(y_unique, -2)][-2:])[0]
         if abs(diff_to_max) > med_diff_multiple*median_diff:
             keep_inds = y < mx
-        diff_to_min = np.diff(y[np.argpartition(y, 2)][:2])[0]
+        diff_to_min = np.diff(y_unique[np.argpartition(y_unique, 2)][:2])[0]
         if abs(diff_to_min) > med_diff_multiple*median_diff:
             keep_inds = y > mn
         return keep_inds
@@ -215,7 +222,6 @@ class Preprocessor(object):
         modified_z_score = 0.6745 * diff / med_abs_deviation
         keep_inds = modified_z_score <= threshold
         return keep_inds
-
 
     def standardize_datetimes(self, data, dts):
         # calculate the interval between datetimes
