@@ -16,6 +16,8 @@ class Comparer(object):
         self.b_mean = np.mean(b)
         # error (overpredict is negative) 
         self.e = b-p
+        # total biased error
+        self.tbe = sum(self.e)
         # normalized percentage error 
         self.npe = 100*self.e/b
         self.npe_min = np.min(self.npe)
@@ -41,7 +43,10 @@ class Comparer(object):
 
     def __str__(self):
         # returns a string idescribing how closely the arrays match each other
-        rv ='\nNormalized Mean Bias Error: %s %%'%str(self.nmbe)
+        rv = '\nNote that values are negative when the model predicts'
+        rv += ' a higher value than the baseline (i.e. overprediction)'
+        rv += '\nTotal Biased Error: %s [in original units]'%str(self.tbe)
+        rv +='\nNormalized Mean Bias Error: %s %%'%str(self.nmbe)
         rv +='\nMean Absolute Percent Error: %s %%'%str(self.mape)
         rv +='\nCVRMSE: %s %%'%str(self.cvrmse)
         rv +='\nR2: %s %%'%str(self.r2)

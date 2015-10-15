@@ -30,7 +30,6 @@ class Weather(object):
                                     .astype(datetime.datetime)
         diff = start-self.target_dts[0]
         self.target_dts = self.target_dts+diff
-        pdb.set_trace()
         unix_vec = np.vectorize(self.str_to_unix_api)
         self.target_unix = unix_vec(self.target_dts)
         if geocode != None:

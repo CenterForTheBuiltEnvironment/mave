@@ -452,7 +452,8 @@ class ModelAggregator(object):
             rv += ""
         rv += "\n\n=== Fit to the training data ==="
         rv += "\nThese error metrics represent the match between the"+ \
-                 " %s data used to train the model and the model prediction:"
+               " pre-retrofit data used to train the model and" + \
+               " the model prediction:"
         rv += str(self.error_metrics)
         return rv
 
@@ -506,10 +507,13 @@ class SingleModelMnV(object):
         rv = "\n===== Pre-retrofit model training summary ====="
         rv += str(self.m)
         rv += "\n===== Results ====="
-        rv += "\nThese results represent the match between the"+ \
-                 " measured post-retrofit data and the predicted" + \
-                 " post-retrofit consumption:"
+        rv += "\nThese results quantify the difference between the"+ \
+              " measured post-retrofit data and the predicted" + \
+              " consumption:"
         rv += str(self.error_metrics)
+        rv += "\nThe total estimated savings in the post-retrofit period" + \
+              " (also known as the avoided energy cost) are:" + \
+              " %s [in the original units]"%round(self.error_metrics.tbe,2)
         return rv
  
 class DualModelMnV(object):
