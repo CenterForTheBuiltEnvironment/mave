@@ -13,6 +13,7 @@ import datetime, time
 import dateutil.parser as dparser
 import pdb
 import json
+import sys
 
 class Weather(object):
     def __init__(self,
@@ -24,12 +25,19 @@ class Weather(object):
                  interp_interval = '15m',
                  save = True,
                  **kwargs):
-        self.target_dts = np.arange(start,
+        if start > end:
+            error_msg =  "start time has to before the end time"
+            sys.exit(error_msg)
+        else:
+            self.target_dts = np.arange(start,
                                     end,
                                     dtype='datetime64[%s]'%interp_interval)\
                                     .astype(datetime.datetime)
-        diff = start-self.target_dts[0]
-        self.target_dts = self.target_dts+diff
+        interval = self.target_dts[-1]-self.target_dts[-2]
+        self.target_dts = self.target_dts + (start-self.target_dts[0])
+        if self.target_dts[-1] < end - interval:
+            self.target_dts = np.append(self.target_dts, \
+                                        self.target_dts[-1]+ interval)
         unix_vec = np.vectorize(self.str_to_unix_api)
         self.target_unix = unix_vec(self.target_dts)
         if geocode != None:
@@ -56,7 +64,9 @@ class Weather(object):
 
     def get_raw(self, start, end, geocode):
         # define a range of dates
+        end = end + datetime.timedelta(days=1)
         dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
+        pdb.set_trace()
         # download the timestamp data for that range of dates
         raw = np.asarray(map(lambda x: self.get_daily(geocode,x),dates))
         # stack each day of downloaded data
@@ -147,8 +157,8 @@ class Weather(object):
 
 
 if __name__ == "__main__":
-    start = datetime.datetime(2012,1,1,0,13)
-    end = datetime.datetime(2012,1,3,0,0)
+    start = datetime.datetime(2011,12,31,23,55)
+    end = datetime.datetime(2012,1,2,23,56)
     geocode = 'SFO'
     key = 'd3dffb3b59309a05'
     zipcode = '94720'
