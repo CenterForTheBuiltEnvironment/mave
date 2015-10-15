@@ -511,8 +511,8 @@ class SingleModelMnV(object):
               " measured post-retrofit data and the predicted" + \
               " consumption:"
         rv += str(self.error_metrics)
-        rv += "\nThe total estimated savings in the post-retrofit period" + \
-              " (also known as the avoided energy cost) are:" + \
+        rv += "\nThe total estimated energy savings in the post-retrofit" + \
+              " period (also known as the avoided energy cost) are:" + \
               " %s [in the original units]"%round(self.error_metrics.tbe,2)
         return rv
  
