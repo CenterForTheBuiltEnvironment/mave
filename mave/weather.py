@@ -66,7 +66,6 @@ class Weather(object):
         # define a range of dates
         end = end + datetime.timedelta(days=1)
         dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
-        pdb.set_trace()
         # download the timestamp data for that range of dates
         raw = np.asarray(map(lambda x: self.get_daily(geocode,x),dates))
         # stack each day of downloaded data
@@ -109,6 +108,7 @@ class Weather(object):
 
     def get_raw_api(self, start, end, zipcode, key):
         # define a range of dates
+        end = end + datetime.timedelta(days=1)
         dates = np.arange(start.date(), end.date(), dtype='datetime64[D]')
         # download the timestamp data for that range of dates
         raw = np.asarray(map(lambda x: self.get_daily_api(zipcode,key,x),dates))
