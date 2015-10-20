@@ -5,6 +5,7 @@ import pdb
 from zipfile import ZipFile
 from StringIO import StringIO
 import os
+import pkgutil
 from datetime import datetime
 
 class location(object):
@@ -53,7 +54,7 @@ class TMYData(object):
         self.tmy = self.getTMY(self.lat,self.lon)
 
     def getTMY(self,lat,lon):
-        f = open('./mave/data/epwurl.csv','r')
+        f = StringIO(pkgutil.get_data('mave', 'data/epwurl.csv'))
         csv = np.genfromtxt(f, delimiter=',', dtype=None)
         csv_lat = csv[1:,4].astype(float)
         csv_lon = csv[1:,5].astype(float)
