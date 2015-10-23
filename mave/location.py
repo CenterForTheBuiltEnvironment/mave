@@ -247,6 +247,7 @@ class TMYData(object):
         target_unix = map(lambda x: time.mktime(x.timetuple()),target_dts)
         interp_db = np.interp(target_unix,unix_dt,tmy['DryBulb'])
         interp_dp = np.interp(target_unix,unix_dt,tmy['DewPoint'])
+        target_dts = map(lambda x: x.isoformat(),target_dts)
         cleaned_tmy = np.column_stack((target_dts,interp_db,interp_dp))
         column_names = ','.join(cols)
         np.savetxt('./mave/data/clean_tmy.csv',\
