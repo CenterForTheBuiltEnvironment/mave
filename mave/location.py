@@ -126,7 +126,7 @@ class weather(object):
               (geocode,date.year,date.month,date.day)
         try:
             f = urllib2.urlopen(url)
-        except IOError:
+        except:
             time.sleep(30)
             try:
                 f = urllib2.urlopen(url)
@@ -142,6 +142,8 @@ class weather(object):
                                 skip_header=2)
         ts = raw_txt['time']
         time_series = np.ravel(np.core.defchararray.add(str(date)+' ',ts))
+        pdb.set_trace()
+        raw_txt['tempF']=(raw_txt['tempF']-32)/1.8
         return time_series, raw_txt['tempF'], raw_txt['dpF']
 
     def str_to_unix(self,s):
@@ -189,8 +191,8 @@ class weather(object):
                                int(obs['date']['mday']),\
                                int(obs['date']['hour']),\
                                int(obs['date']['min']))
-        self.temp = obs['tempi']
-        self.dewpt = obs['dewpti']
+        self.temp = obs['temps']
+        self.dewpt = obs['dewpts']
         return self.dt, self.temp, self.dewpt
 
     def str_to_unix_api(self,s):

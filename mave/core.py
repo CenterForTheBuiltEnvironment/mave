@@ -23,6 +23,7 @@ from sklearn import preprocessing, cross_validation, metrics
 from holidays import holidays
 import trainers 
 import comparer
+import location
 
 class Preprocessor(object):
 
@@ -47,7 +48,11 @@ class Preprocessor(object):
                  dayfirst = False,
                  yearfirst = False,
                  zipcode = None,
+                 hist_db_column_names = ['OutsideDryBulbTemperature'],
+                 hist_dp_column_names = None,
+                 target_column_names = ['EnergyConsumption'],
                  remove_outliers = 'SingleValue',
+                 X_standardizer = None,
                  **kwargs):
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
@@ -56,6 +61,7 @@ class Preprocessor(object):
         self.use_month = use_month
         self.input_file = input_file
         self.verbose = verbose
+        self.X_standardizer = X_standardizer
         # process the headers
         self.headers, self.named_cols = self.process_headers()
 
@@ -101,7 +107,9 @@ class Preprocessor(object):
         d = np.column_stack(vectorized_process_datetime(dts))
 
         # add other (non datetime related) input features
-        data, target_col_ind = self.append_input_features(data, d)
+        data, target_col_ind = self.append_input_features(data, d,\
+                                                 hist_db_column_names,\
+                                                 target_column_names)
         # remove data
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
@@ -159,11 +167,12 @@ class Preprocessor(object):
         datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
-    def append_input_features(self, data, d0, historical_data_points=2):
+    def append_input_features(self, data, d0, hist_data_names,\
+                              target_names, historical_data_points=2):
         column_names = data.dtype.names[1:] # no need to include datetime column
         d = d0
         for s in column_names:
-            if s in self.HISTORICAL_DATA_COLUMN_NAMES:
+            if s in hist_data_names:
                 d = np.column_stack( (d, data[s]) )
                 if historical_data_points > 0:
                     # create input features using historical data 
@@ -178,14 +187,14 @@ class Preprocessor(object):
                         past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
-            elif not s in self.TARGET_COLUMN_NAMES:
+            elif not s in target_names:
                 # just add the column as an input feature 
                 # without historical data
                 d = np.column_stack( (d, data[s]) )
 
         # add the target data
         split = d.shape[1]
-        for s in self.TARGET_COLUMN_NAMES:
+        for s in target_names:
             if s in column_names:
                 d = np.column_stack( (d, data[s]) )
         return d, split
@@ -320,7 +329,10 @@ class Preprocessor(object):
         return feat
 
     def split_dataset(self, test_size):
-        self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
+        if self.X_standardizer is None:
+            self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
+        else:
+            pass
         self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
         self.X_s = self.X_standardizer.transform(self.X)
         self.y_s = self.y_standardizer.transform(self.y)
@@ -457,8 +469,8 @@ class ModelAggregator(object):
         rv += str(self.error_metrics)
         return rv
 
-class SingleModelMnV(object):
-    def __init__(self, input_file, save=False, **kwargs):
+class MnV(object):
+    def __init__(self, input_file, address=None, save=False, **kwargs):
         # pre-process the input data file
         self.p = Preprocessor(input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -466,14 +478,46 @@ class SingleModelMnV(object):
                                  y=self.p.y_pre_s,
                                  y_standardizer=self.p.y_standardizer) 
         self.m.train_all(**kwargs)
-        # evaluate the output of the model against the post-retrofit data
-        measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
+        if address is None:
+            # evaluate the output of the model against the post-retrofit data
+            measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                                              self.p.y_post_s)
-        predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
+            predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                     self.m.best_model.predict(self.p.X_post_s))
-        self.error_metrics = comparer.Comparer(\
+            self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
                                          baseline=measured_post_retrofit)
+        else:
+            # build a second model based on the post-retrofit data 
+            self.m_post = ModelAggregator(X=self.p.X_post_s,
+                                         y=self.p.y_post_s,
+                                         y_standardizer=self.p.y_standardizer) 
+            self.m_post.train_all(**kwargs)
+            # evaluate the output of both models over the date range 
+            # in the combined pre- & post- retrofit dataset and compare the
+            # two predictions to estimate savings 
+            # TODO: handle different dataset (e.g. TMY data)
+            pre_model = self.p.y_standardizer.inverse_transform(
+                                      self.m_pre.best_model.predict(self.p.X_s))
+            post_model = self.p.y_standardizer.inverse_transform(
+                                    self.m_post.best_model.predict(self.p.X_s))
+            # predication basede on TMY data
+            locale = location.Location(address)
+            interval = str(self.p.interval_seconds/60)+'m'
+            tmy_data = location.TMYData(locale.lat, locale.lon, None, interval)
+            self.p_tmy = Preprocessor(tmy_data,\
+                                      X-standardizer=self.X_standardizer,\
+                                      **kwargs)
+            pre_model_tmy = self.p.y_standardizer.inverse_transform(\
+                            self.m_pre.best_model.predict(self.p_tmy.X_s))
+            post_model_tmy = self.p.y_standardizer.inverse_transform(\
+                            self.m_post.best_model.predict(self.p_tmy.X_s))
+            self.error_metrics = comparer.Comparer(prediction=post_model,
+                                               baseline=pre_model)
+            self.error_metrics_tmy = comparer.Comparer(\
+                                                   prediction=post_model_tmy,\
+                                                   baseline=pre_model_tmy)
+
 
         if save:
             pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
@@ -484,12 +528,12 @@ class SingleModelMnV(object):
                            self.p.dts_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,'+\
-                         'month,holiday,outsideDB,outsideDB8,'+\
+                header = self.p.headers+'/n'+self.p.named_cols+\
+                         'holiday,outsideDB,outsideDB8,'+\
                          'outsideDB16,measured,predicted'
             else:
-                header = 'datetime,minute,hour,dayofweek,'+\
-                         'month,outsideDB,outsideDB,outsideDB16,'+\
+                header = self.p.headers+'/n'+self.p.named_cols+\
+                         'outsideDB,outsideDB,outsideDB16,'+\
                          'measured,predicted'
             post_data = np.column_stack((np.array(str_date),
                                          X_post,

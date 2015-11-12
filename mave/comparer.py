@@ -7,6 +7,8 @@ but each must be the same length/shape
 """
 import math, os, pdb
 import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
 
 class Comparer(object):
     DIGITS = 3
@@ -70,6 +72,20 @@ class Comparer(object):
         rv +='\nNormalized error, max: %s %%\n'%str(self.npe_max)
         return rv
 
+class Plot(object):
+    def __init__(self,baseline,prediction):
+        pp = PdfPages('report.pdf')
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax1.scatter(range(len(baseline)),baseline, s=30, c='b',\
+                    label='baseline',alpha=0.7)
+        ax1.scatter(range(len(prediction)),prediction, s=30, c='r',\
+                    label='prediction',alpha=0.7)
+        plt.legend(loc='upper right')
+        
+        pp.savefig()
+        pp.close()
+   
 if __name__=='__main__': 
     import pdb
     import numpy as np
@@ -77,5 +93,4 @@ if __name__=='__main__':
     p = np.random.random_sample(10000,)+0.5  
     c = Comparer(prediction=p,baseline=b)
     print c
-
-
+    Plot(b,p)
