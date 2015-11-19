@@ -27,8 +27,6 @@ import location
 
 class Preprocessor(object):
 
-    HISTORICAL_DATA_COLUMN_NAMES = ['OutsideDryBulbTemperature']
-    TARGET_COLUMN_NAMES = ['EnergyConsumption']
     IGNORE_TAG = -1
     PRE_DATA_TAG = 0
     POST_DATA_TAG = 1
@@ -48,11 +46,12 @@ class Preprocessor(object):
                  dayfirst = False,
                  yearfirst = False,
                  zipcode = None,
-                 hist_db_column_names = ['OutsideDryBulbTemperature'],
-                 hist_dp_column_names = None,
-                 target_column_names = ['EnergyConsumption'],
+                 outside_db_name = ['OutsideDryBulbTemperature'],
+                 outside_dp_name = None,
+                 target_name = ['EnergyConsumption'],
                  remove_outliers = 'SingleValue',
                  X_standardizer = None,
+                 previous_data_points = 2,
                  **kwargs):
         self.timestamp_format = timestamp_format    
         self.datetime_column_name = datetime_column_name
@@ -61,13 +60,16 @@ class Preprocessor(object):
         self.use_month = use_month
         self.input_file = input_file
         self.verbose = verbose
+        self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
         # process the headers
         self.headers, self.named_cols = self.process_headers()
+        self.name_list = ['minute','hour','day_of_week','month']
 
         # identify holidays to use (if any)
         self.holidays = set([])
         if use_holidays:
+            self.name_list.append('holiday')
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
 
@@ -108,8 +110,8 @@ class Preprocessor(object):
 
         # add other (non datetime related) input features
         data, target_col_ind = self.append_input_features(data, d,\
-                                                 hist_db_column_names,\
-                                                 target_column_names)
+                                                 outside_db_name,\
+                                                 target_name)
         # remove data
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
@@ -148,23 +150,30 @@ class Preprocessor(object):
             datetimes = datetimes[keep_inds]
             data = data[keep_inds]
         # split the data into input and target arrays
-        y = data[:,target_col_ind]
+        if target_col_ind >= data.shape[1]:
+            y = None
+        else:
+            y = data[:,target_col_ind]
         X = np.hstack((data[:,:target_col_ind], data[:,target_col_ind+1:]))
         # remove outliers
-        if remove_outliers == 'SingleValue':
-            keep_inds = self.is_single_value_outlier(y, med_diff_multiple=100)
-        elif remove_outliers == 'MultipleValues':
-            keep_inds = self.is_outlier(y, threshold=10)
-        else:
-            keep_inds = np.ones(len(y),dtype=bool)
-        if self.verbose: 
-            outliers = y[~keep_inds]
-            outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
-            print '\nRemoved the following %s outlier values:\n%s'%\
-                  (len(outliers),zip(outlier_ts,outliers))
-        X = X[keep_inds]
-        y = y[keep_inds]
-        datetimes = datetimes[keep_inds]
+        if y is not None:
+            if remove_outliers == 'SingleValue':
+                keep_inds = self.is_single_value_outlier(y, med_diff_multiple=100)
+            elif remove_outliers == 'MultipleValues':
+                keep_inds = self.is_outlier(y, threshold=10)
+            else:
+                if y is not None:
+                    keep_inds = np.ones(len(y),dtype=bool)
+                else:
+                    keep_inds = 0
+            if self.verbose: 
+                outliers = y[~keep_inds]
+                outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
+                print '\nRemoved the following %s outlier values:\n%s'%\
+                      (len(outliers),zip(outlier_ts,outliers))
+            X = X[keep_inds]
+            y = y[keep_inds]
+            datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
     def append_input_features(self, data, d0, hist_data_names,\
@@ -174,6 +183,7 @@ class Preprocessor(object):
         for s in column_names:
             if s in hist_data_names:
                 d = np.column_stack( (d, data[s]) )
+                self.name_list.append(str(s))
                 if historical_data_points > 0:
                     # create input features using historical data 
                     # at the intervals defined by n_vals_in_past_day
@@ -187,11 +197,11 @@ class Preprocessor(object):
                         past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
+                        self.name_list.append(str(s)+'_'+ str(past_hours))
             elif not s in target_names:
                 # just add the column as an input feature 
                 # without historical data
                 d = np.column_stack( (d, data[s]) )
-
         # add the target data
         split = d.shape[1]
         for s in target_names:
@@ -333,29 +343,31 @@ class Preprocessor(object):
             self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
         else:
             pass
-        self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
         self.X_s = self.X_standardizer.transform(self.X)
-        self.y_s = self.y_standardizer.transform(self.y)
-        if self.cps is not None:
-            pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
-            post_inds = np.where(self.cps == self.POST_DATA_TAG)
-           
-            self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
-            self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
-            self.dts_pre, self.dts_post = \
-                 self.dts[pre_inds], self.dts[post_inds]
+        if self.y != None:
+            self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
+            self.y_s = self.y_standardizer.transform(self.y)
+            if self.cps is not None:
+                pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
+                post_inds = np.where(self.cps == self.POST_DATA_TAG)
+               
+                self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
+                self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
+                self.dts_pre, self.dts_post = \
+                     self.dts[pre_inds], self.dts[post_inds]
+            else:
+                # handle case where no changepoint is given
+                # by using a predefined fraction of the dataset
+                # to split into pre and post datasets.
+                # this is useful for testing the accuracy of the mmodel methods
+                # for datasets in which no retrofit is known to have occurred
+                pre = len(self.X_s)*(1-test_size)
+                post = len(self.X_s)*test_size
+                self.X_pre_s, self.X_post_s = self.X_s[:pre], self.X_s[pre:]
+                self.y_pre_s, self.y_post_s = self.y_s[:pre], self.y_s[pre:]
+                self.dts_pre, self.dts_post = self.dts[:pre], self.dts[pre:]
         else:
-            # handle case where no changepoint is given
-            # by using a predefined fraction of the dataset
-            # to split into pre and post datasets.
-            # this is useful for testing the accuracy of the mmodel methods
-            # for datasets in which no retrofit is known to have occurred
-            pre = len(self.X_s)*(1-test_size)
-            post = len(self.X_s)*test_size
-            self.X_pre_s, self.X_post_s = self.X_s[:pre], self.X_s[pre:]
-            self.y_pre_s, self.y_post_s = self.y_s[:pre], self.y_s[pre:]
-            self.dts_pre, self.dts_post = self.dts[:pre], self.dts[pre:]
-
+            pass
 
 class ModelAggregator(object):
 
@@ -433,7 +445,7 @@ class ModelAggregator(object):
         #self.train_gradient_boosting(**kwargs)
 
         self.select_model()
-        self.score()
+        #self.score()
         return self.models
     
     def select_model(self):
@@ -471,6 +483,7 @@ class ModelAggregator(object):
 
 class MnV(object):
     def __init__(self, input_file, address=None, save=False, **kwargs):
+        self.address = address
         # pre-process the input data file
         self.p = Preprocessor(input_file, **kwargs)
         # build a model based on the pre-retrofit data 
@@ -486,7 +499,8 @@ class MnV(object):
                                     self.m.best_model.predict(self.p.X_post_s))
             self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
-                                         baseline=measured_post_retrofit)
+                                         baseline=measured_post_retrofit,
+                                         p_X = self.p.X, names=self.p.name_list)
         else:
             # build a second model based on the post-retrofit data 
             self.m_post = ModelAggregator(X=self.p.X_post_s,
@@ -498,28 +512,30 @@ class MnV(object):
             # two predictions to estimate savings 
             # TODO: handle different dataset (e.g. TMY data)
             pre_model = self.p.y_standardizer.inverse_transform(
-                                      self.m_pre.best_model.predict(self.p.X_s))
+                                      self.m.best_model.predict(self.p.X_s))
             post_model = self.p.y_standardizer.inverse_transform(
                                     self.m_post.best_model.predict(self.p.X_s))
             # predication basede on TMY data
-            locale = location.Location(address)
+            locale = location.Location(self.address)
             interval = str(self.p.interval_seconds/60)+'m'
             tmy_data = location.TMYData(locale.lat, locale.lon, None, interval)
-            self.p_tmy = Preprocessor(tmy_data,\
-                                      X-standardizer=self.X_standardizer,\
-                                      **kwargs)
+            tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,'Ur')
+            self.p_tmy = Preprocessor(tmy_csv, self.p.X_standardizer)
             pre_model_tmy = self.p.y_standardizer.inverse_transform(\
-                            self.m_pre.best_model.predict(self.p_tmy.X_s))
+                            self.m.best_model.predict(self.p_tmy.X_s))
             post_model_tmy = self.p.y_standardizer.inverse_transform(\
                             self.m_post.best_model.predict(self.p_tmy.X_s))
             self.error_metrics = comparer.Comparer(prediction=post_model,
-                                               baseline=pre_model)
+                                               baseline=pre_model,
+                                               p_X=self.p.X, 
+                                               names=self.p.name_list)
             self.error_metrics_tmy = comparer.Comparer(\
                                                    prediction=post_model_tmy,\
-                                                   baseline=pre_model_tmy)
+                                                   baseline=pre_model_tmy,
+                                                   p_X=self.p.X,
+                                                   names = self.p.name_list)
 
-
-        if save:
+        if save is True and address is None:
             pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
                                            self.m.best_model.best_estimator_)
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
@@ -528,12 +544,12 @@ class MnV(object):
                            self.p.dts_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             if self.p.use_holidays: 
-                header = self.p.headers+'/n'+self.p.named_cols+\
-                         'holiday,outsideDB,outsideDB8,'+\
+                header = 'datetime,minute,hour,dayofweek,month,'+\
+                         'holiday,outsideDB,outsideDB8'+\
                          'outsideDB16,measured,predicted'
             else:
-                header = self.p.headers+'/n'+self.p.named_cols+\
-                         'outsideDB,outsideDB,outsideDB16,'+\
+                header = 'datetime.minute,hour,dayofweek,month,'+\
+                         'outsideDB,outsideDB8,outsideDB16,'+\
                          'measured,predicted'
             post_data = np.column_stack((np.array(str_date),
                                          X_post,
@@ -545,46 +561,8 @@ class MnV(object):
                        header= header,
                        fmt='%s',
                        comments = '')
-                
 
-    def __str__(self):
-        rv = "\n===== Pre-retrofit model training summary ====="
-        rv += str(self.m)
-        rv += "\n===== Results ====="
-        rv += "\nThese results quantify the difference between the"+ \
-              " measured post-retrofit data and the predicted" + \
-              " consumption:"
-        rv += str(self.error_metrics)
-        rv += "\nThe total estimated energy savings in the post-retrofit" + \
-              " period (also known as the avoided energy cost) are:" + \
-              " %s [in the original units]"%round(self.error_metrics.tbe,2)
-        return rv
- 
-class DualModelMnV(object):
-    def __init__(self, input_file, save=False, **kwargs):
-        # pre-process the input data file
-        self.p = Preprocessor(input_file=input_file, **kwargs)
-        # build a model based on the pre-retrofit data 
-        self.m_pre = ModelAggregator(X=self.p.X_pre_s,
-                                     y=self.p.y_pre_s,
-                                     y_standardizer=self.p.y_standardizer) 
-        self.m_pre.train_all(**kwargs)
-        # build a second model based on the post-retrofit data 
-        self.m_post = ModelAggregator(X=self.p.X_post_s,
-                                     y=self.p.y_post_s,
-                                     y_standardizer=self.p.y_standardizer) 
-        self.m_post.train_all(**kwargs)
-        # evaluate the output of both models over the date range 
-        # in the combined pre- & post- retrofit dataset and compare the
-        # two predictions to estimate savings 
-        # TODO: handle different dataset (e.g. TMY data)
-        pre_model = self.p.y_standardizer.inverse_transform(
-                                    self.m_pre.best_model.predict(self.p.X_s))
-        post_model = self.p.y_standardizer.inverse_transform(
-                                    self.m_post.best_model.predict(self.p.X_s))
-        self.error_metrics = comparer.Comparer(prediction=post_model,
-                                               baseline=pre_model)
-        if save:
+        elif save is True and address is not None:
             pickle.Pickler(open('model_pre.pkl', 'wb'), -1).dump(
                                            self.m.best_model.best_estimator_)
             pickle.Pickler(open('model_post.pkl', 'wb'), -1).dump(
@@ -592,7 +570,7 @@ class DualModelMnV(object):
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                           self.error_metrics)
             str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
-                           self.p.dts_post)
+                           self.p.dts)
             if self.p.use_holidays: 
                 header = 'datetime,minute,hour,dayofweek,'+\
                          'month,holiday,outsideDB,outsideDB8,'+\
@@ -608,27 +586,42 @@ class DualModelMnV(object):
             np.savetxt('d_post.csv', post_data,\
                         delimiter=',', header= header,\
                         fmt='%s',comments = '')
-            
+        else:
+            pass 
+
     def __str__(self):
-        rv = "\n===== Pre-retrofit model training summary ====="
-        rv += str(self.m_pre)
-        rv += "\n===== Post-retrofit model training summary ====="
-        rv += str(self.m_post)
-        rv += "\n===== Results ====="
-        rv += "\nThese results compare the energy consumption predicted " + \
-              "by both models over the entire date range in the input file." + \
-              " One model was trained on the pre-retrofit data and the" + \
-              " other was trained on the post-retrofit data:"
-        rv += str(self.error_metrics)
-        return rv
+        if self.address is None:
+            rv = "\n===== Pre-retrofit model training summary ====="
+            rv += str(self.m)
+            rv += "\n===== Results ====="
+            rv += "\nThese results quantify the difference between the"+ \
+        	  " measured post-retrofit data and the predicted" + \
+        	  " consumption:"
+            rv += str(self.error_metrics)
+            rv += "\nThe total estimated energy savings in the post-retrofit"+\
+        	  " period (also known as the avoided energy cost) are:" + \
+        	  " %s [in the original units]"%round(self.error_metrics.tbe,2)
+            return rv
+        else:
+            rv = "\n===== Pre-retrofit model training summary ====="
+            rv += str(self.m)
+            rv += "\n===== Post-retrofit model training summary ====="
+            rv += str(self.m_post)
+            rv += "\n===== Results ====="
+            rv += "\nThese results compare the energy consumption predicted "+\
+        	"by both models over the entire date range in the input file."+\
+        	  " One model was trained on the pre-retrofit data and the" + \
+        	  " other was trained on the post-retrofit data:"
+            rv += str(self.error_metrics)
+            return rv
  
 if __name__=='__main__': 
-    f = open('data/ex2.csv', 'Ur')
+    f = open('mave/data/ex2.csv', 'Ur')
     cps = [
            ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
            ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
-    mnv = SingleModelMnV(input_file=f, changepoints=cps, save=True)
+    mnv = MnV(input_file=f, changepoints=cps,address='wurster hall, uc berkeley', save=True)
     print mnv

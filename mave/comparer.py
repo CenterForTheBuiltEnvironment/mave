@@ -9,10 +9,13 @@ import math, os, pdb
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
+       
 
 class Comparer(object):
     DIGITS = 3
-    def __init__(self, prediction, baseline):
+    def __init__(self, prediction, baseline, p_X, names, **kwargs):
+        self.X = p_X
+        self.names = names
         p = np.array(prediction).astype(np.float)
         b = np.array(baseline).astype(np.float)
         self.b_mean = np.mean(b)
@@ -49,6 +52,54 @@ class Comparer(object):
         self.nape = abs(self.npe)
         # mean absolute percentage error
         self.mape = round(np.mean(self.nape),self.DIGITS)
+        self.plot(p,b) 
+
+    def plot(self,baseline,prediction):
+        pp = PdfPages('report.pdf')
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+        ax1.scatter(range(len(baseline)),baseline, s=30, c='b',\
+                    label='baseline', edgecolors='none',alpha=0.55)
+        ax1.scatter(range(len(prediction)),prediction, s=30, c='y',\
+                    label='prediction',edgecolors='none',alpha=0.4)
+        plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
+
+        #find the error in predicting the monthly peak value
+        monthly_peak_error = []
+        for i in range(1,13):
+            max_b = np.amax(np.extract(np.where(self.X[:,3]==i),baseline))
+            max_p = np.amax(np.extract(np.where(self.X[:,3]==i),prediction))
+            error = (max_b - max_p)/max_b
+            monthly_peak_error.append(error)
+        plt.plot((range(1,13),monthly_peak_error))
+
+        #boxplot of error by the hour of day
+        bpdata_hour =[]
+        for i in range(24):
+            hour_b=np.extract(np.where(self.X[:,1]==i),baseline)
+            hour_p=np.extract(np.where(self.X[:,1]==i),prediction)
+            diff = hour_b - hour_p
+            bpdata_hour.append(100*diff/hour_b)
+        plt.boxplot(bpdata_hour)
+
+        #boxplot of error by the day of week
+        bpdata_week = []
+        for i in range(7):
+            week_b = np.extract(np.where(self.X[:2]==i),baseline)
+            week_p = np.extract(np.where(self.X[:2]==i),prediction)
+            diff = week_b - week_p
+            bpdata_week.append(100*diff/week_b)
+        plt.boxplot(bpdata_week)
+
+            
+       # rows,row_pos = np.unique(self.X[:,1],return_inverse=True)
+       # cols,col_pos = np.unique(self.X[:,2],return_inverse=True)
+       # pt_hour_b = np.zeros((len(rows),len(cols)),dtype=self.X.dtype)
+       # pt_hour_p = pt_hour_b
+       # pt_hour_b[row_pos,col_pos] = baseline
+       # pt_hour_p[row_pos,col_pos] = prediction
+        pp.savefig()
+        pp.close()
 
     def __str__(self):
         # returns a string idescribing how closely the arrays match each other
@@ -71,26 +122,14 @@ class Comparer(object):
         rv +='\nNormalized error, 90th percentile: %s %%'%str(self.npe_90th)
         rv +='\nNormalized error, max: %s %%\n'%str(self.npe_max)
         return rv
-
-class Plot(object):
-    def __init__(self,baseline,prediction):
-        pp = PdfPages('report.pdf')
-        fig = plt.figure()
-        ax1 = fig.add_subplot(111)
-        ax1.scatter(range(len(baseline)),baseline, s=30, c='b',\
-                    label='baseline',alpha=0.7)
-        ax1.scatter(range(len(prediction)),prediction, s=30, c='r',\
-                    label='prediction',alpha=0.7)
-        plt.legend(loc='upper right')
-        
-        pp.savefig()
-        pp.close()
    
 if __name__=='__main__': 
     import pdb
     import numpy as np
     b = np.ones(10000,)*(np.random.random_sample(10000,)+0.5)
-    p = np.random.random_sample(10000,)+0.5  
-    c = Comparer(prediction=p,baseline=b)
+    p = np.random.random_sample(10000,)+0.5
+    dts = np.arange('2010-01-01T00:00','2010-12-31T23:59',\
+                     dtype=('datetime64[m]'))
+    name = ['dt']  
+    c = Comparer(prediction=p,baseline=b,p_X=dts,names=name)
     print c
-    Plot(b,p)

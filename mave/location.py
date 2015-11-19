@@ -20,7 +20,7 @@ import pdb
 import sys 
 
 
-class location(object):
+class Location(object):
     def __init__(self, address, **kwargs):
         self.lat, self.lon, self.real_addrs = self.get_latlon(address)
         self.geocode = self.get_geocode(self.lat, self.lon)
@@ -59,7 +59,7 @@ class location(object):
             geocode = geocode
         return geocode
 
-class weather(object):
+class Weather(object):
     def __init__(self,
                  start,
                  end,
@@ -142,7 +142,6 @@ class weather(object):
                                 skip_header=2)
         ts = raw_txt['time']
         time_series = np.ravel(np.core.defchararray.add(str(date)+' ',ts))
-        pdb.set_trace()
         raw_txt['tempF']=(raw_txt['tempF']-32)/1.8
         return time_series, raw_txt['tempF'], raw_txt['dpF']
 
@@ -173,7 +172,7 @@ class weather(object):
                                %(key,date.year,month,day,geocode)
         try:
             f = urllib2.urlopen(url)
-        except IOError:
+        except:
             time.sleep(30)
             try:
                 f = urllib2.urlopen(url)
@@ -201,7 +200,8 @@ class weather(object):
 
 
 class TMYData(object):
-    def __init__(self, lat, lon, year, interval, **kwargs):
+    def __init__(self, lat, lon, year, interval, use_dp=False, **kwargs):
+        self.use_dp = use_dp
         self.tmy_file, self.cleaned_tmy = self.getTMY(lat, lon, year, interval)
 
     def getTMY(self,lat,lon,year,interval):
@@ -227,14 +227,17 @@ class TMYData(object):
                  "Weather_code","Precip","Aerosol_Opt_Dept","Snow_Dept",\
                  "Days_Since_Last_Snow","Albedo","Liquid_Precip_Dept",\
                  "Liquid_Precip_Q"]
-        cols = list(filter(lambda x: x=="DryBulb" and x=="DewPoint",names))
+        if self.use_dp is False:
+           cols = ','.join(names[:5])+','+names[6]
+        else:
+           cols = ','.join(names[:5])+','+','.join(names[6:8])
         tmy = np.genfromtxt(un_zip_file.open(tmy_file), delimiter=',',\
                     dtype=None, skip_header=8, names=names, usecols=cols)
-        if year == None: 
-            np.place(tmy['year'],tmy['year']!=datetime.datetime.now().year,\
+        if year is None: 
+            np.place(tmy["year"],tmy["year"]!=datetime.datetime.now().year,\
                      datetime.datetime.now().year)
         else:
-            np.place(tmy['year'],tmy['year']!=year,year)
+            np.place(tmy["year"],tmy["year"]!=year,year)
         comb_dt = np.column_stack((tmy['year'],tmy['month'],\
                                    tmy['day'],(tmy['hour']-1),\
                                    tmy['minute'])).astype(str).tolist()
@@ -246,28 +249,35 @@ class TMYData(object):
                                dtype='datetime64[%s]'%interval)\
                                .astype(datetime.datetime)
         target_dts = np.append(target_dts,dt[-1])
+        #target_dts = map(lambda x: x.isoformat(),target_dts)
         target_unix = map(lambda x: time.mktime(x.timetuple()),target_dts)
         interp_db = np.interp(target_unix,unix_dt,tmy['DryBulb'])
-        interp_dp = np.interp(target_unix,unix_dt,tmy['DewPoint'])
-        target_dts = map(lambda x: x.isoformat(),target_dts)
-        cleaned_tmy = np.column_stack((target_dts,interp_db,interp_dp))
-        column_names = ','.join(cols)
-        np.savetxt('./mave/data/clean_tmy.csv',\
-                   cleaned_tmy,delimiter=',',fmt='%s',\
-                   header=column_names, comments='')
+        if self.use_dp is True:
+            column_names = ['LocalDateTime','OutsideDryBulbTemperature','OutsideDewPointTemperature']
+            interp_dp = np.interp(target_unix,unix_dt,tmy['DewPoint'])
+            cleaned_tmy = np.column_stack((target_dts,interp_db,interp_dp))
+        else:
+            column_names = ['LocalDateTime','OutsideDryBulbTemperature']
+            cleaned_tmy = np.column_stack((target_dts,interp_db))   
+            cleaned_tmy = np.vstack((column_names,cleaned_tmy))
+        headers = 'This CSV file is a cleaned version of the TMY data file.',\
+                 'The data were generated from file'+str(tmy_file)
+        np.savetxt('./mave/data/clean_%s.csv'%(tmy_file),\
+                   cleaned_tmy,delimiter=',',fmt='%s', comments='')
         return tmy_file, cleaned_tmy
 
 if __name__ == "__main__":
     address = 'wurster hall, uc berkeley'
-    test = location(address)
+    test = Location(address)
     print 'address:',test.real_addrs
     print 'lat:',test.lat,' lon:',test.lon
     print 'nearest_airport:',test.geocode
     start = datetime.datetime(2015,1,1,0,0)
     end = datetime.datetime(2015,2,1,0,0)
     interp_interval = '15m'
-    hist_weather = weather(start,end,None,test.geocode,\
-                           interp_interval,False)
-    test2 = TMYData(test.lat,test.lon,None,interp_interval)
+    use_dp = False
+   # hist_weather = Weather(start,end,None,test.geocode,\
+   #                        interp_interval,False)
+    test2 = TMYData(test.lat,test.lon,None,interp_interval,use_dp)
     print 'TMY file:',test2.tmy_file
     print 'TMY Data:', test2.cleaned_tmy

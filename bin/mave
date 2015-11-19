@@ -78,6 +78,8 @@ if __name__=='__main__':
                      help="datetime at which post-retrofit period begins")
     prs.add_argument("-ts", "--test_size", type=float,
                      help="fraction of the file used as post_retrofit period")
+    prs.add_argument("-ad", "--address", type=str,
+                     help="address of the building")
     # output controls
     prs.add_argument("-v", "--verbose", action="store_true",
                      help="increase output verbosity")
