@@ -41,11 +41,11 @@ class Preprocessor(object):
                  changepoints=None,
                  test_size=0.25,
                  timestamp_format='%Y-%m-%d%T%H%M',
-                 datetime_column_name = 'LocalDateTime',
-                 holiday_keys = ['USFederal'],
-                 dayfirst = False,
-                 yearfirst = False,
-                 zipcode = None,
+                 datetime_column_name='LocalDateTime',
+                 holiday_keys=['USFederal'],
+                 dayfirst=False,
+                 yearfirst=False,
+                 locale=None,
                  outside_db_name = ['OutsideDryBulbTemperature'],
                  outside_dp_name = None,
                  target_name = ['EnergyConsumption'],
@@ -71,7 +71,7 @@ class Preprocessor(object):
         if use_holidays:
             self.name_list.append('holiday')
             for key in self.holiday_keys:
-                self.holidays = self.holidays.union(holidays[key])
+                self.holidays = self.holidays.union(holidays[key])    
 
         # read in the input data
         data = np.genfromtxt(self.input_file, 
@@ -107,6 +107,18 @@ class Preprocessor(object):
             self.standardize_datetimes(data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
+
+        # download weather data if no outside_db_name
+        if (outside_db_name is None or outside_db_name==['']) and locale!=None:
+            outside_db_name = ['OutsideDryBulbTemperature']
+            hist_weather = location.Weather(
+                              start=dts[0], end=dts[-1],
+                              key=None, geocode=locale.geocode,
+                              interp_interval=str(self.interval_seconds/60)+'m',
+                              save=False, **kwargs)
+            outside_db = np.array(hist_weather.interp_data[0],\
+                                  dtype=[(outside_db_name[0],'f8')])
+            data=self.join_recarrays([data, outside_db])
 
         # add other (non datetime related) input features
         data, target_col_ind = self.append_input_features(data, d,\
@@ -177,18 +189,20 @@ class Preprocessor(object):
         return X, y, datetimes
 
     def append_input_features(self, data, d0, hist_data_names,\
-                              target_names, historical_data_points=2):
+                              target_names, previous_data_points=2):
         column_names = data.dtype.names[1:] # no need to include datetime column
         d = d0
         for s in column_names:
             if s in hist_data_names:
+                if np.greater(data[s],60).any()==True:
+                    data[s] = (data[s]-32)/1.8
                 d = np.column_stack( (d, data[s]) )
                 self.name_list.append(str(s))
-                if historical_data_points > 0:
+                if previous_data_points > 0:
                     # create input features using historical data 
                     # at the intervals defined by n_vals_in_past_day
-                    for v in range(1, historical_data_points + 1):
-                        past_hours = v * 24 / (historical_data_points + 1)
+                    for v in range(1, previous_data_points + 1):
+                        past_hours = v * 24 / (previous_data_points + 1)
                         n_vals = past_hours * self.vals_per_hr
                         past_data = np.roll(data[s], n_vals)
                         # for the first day in the file 
@@ -368,6 +382,14 @@ class Preprocessor(object):
                 self.dts_pre, self.dts_post = self.dts[:pre], self.dts[pre:]
         else:
             pass
+    
+    def join_recarrays(self,arrays):
+        newtype = sum((a.dtype.descr for a in arrays), [])
+        newrecarray = np.empty(len(arrays[0]), dtype=newtype)
+        for a in arrays:
+            for name in a.dtype.names:
+                newrecarray[name] = a[name]
+        return newrecarray
 
 class ModelAggregator(object):
 
@@ -445,7 +467,7 @@ class ModelAggregator(object):
         #self.train_gradient_boosting(**kwargs)
 
         self.select_model()
-        #self.score()
+        self.score()
         return self.models
     
     def select_model(self):
@@ -459,8 +481,9 @@ class ModelAggregator(object):
         baseline = self.y_standardizer.inverse_transform(self.y)
         prediction = self.y_standardizer.inverse_transform(\
                                          self.best_model.predict(self.X))
-        self.error_metrics = comparer.Comparer(\
-                                      prediction=prediction,baseline=baseline)
+        self.error_metrics = comparer.Comparer(prediction=prediction,\
+                                               baseline=baseline,\
+                                               plot=False)
         return self.error_metrics
 
     def __str__(self):
@@ -482,26 +505,39 @@ class ModelAggregator(object):
         return rv
 
 class MnV(object):
-    def __init__(self, input_file, address=None, save=False, **kwargs):
+    def __init__(self,
+                 input_file, 
+                 address=None,
+                 save=False,
+                 use_TMY=False,
+                 plot=False, 
+                 **kwargs):
         self.address = address
-        # pre-process the input data file
-        self.p = Preprocessor(input_file, **kwargs)
-        # build a model based on the pre-retrofit data 
-        self.m = ModelAggregator(X=self.p.X_pre_s,
-                                 y=self.p.y_pre_s,
-                                 y_standardizer=self.p.y_standardizer) 
-        self.m.train_all(**kwargs)
-        if address is None:
+        if address is None or address=='':
+            self.p = Preprocessor(input_file,**kwargs)
+            self.m = ModelAggregator(X=self.p.X_pre_s,
+                                     y=self.p.y_pre_s,
+                                     y_standardizer=self.p.y_standardizer) 
+            self.m.train_all(**kwargs)
             # evaluate the output of the model against the post-retrofit data
             measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                                              self.p.y_post_s)
             predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                     self.m.best_model.predict(self.p.X_post_s))
+            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
                                          baseline=measured_post_retrofit,
-                                         p_X = self.p.X, names=self.p.name_list)
+                                         p_X=X_post, names=self.p.name_list,
+                                         plot=plot)
         else:
+            self.locale = location.Location(self.address)
+            # pre-process the input data file
+            self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
+            self.m = ModelAggregator(X=self.p.X_pre_s,
+                                     y=self.p.y_pre_s,
+                                     y_standardizer=self.p.y_standardizer) 
+            self.m.train_all(**kwargs)
             # build a second model based on the post-retrofit data 
             self.m_post = ModelAggregator(X=self.p.X_post_s,
                                          y=self.p.y_post_s,
@@ -510,30 +546,39 @@ class MnV(object):
             # evaluate the output of both models over the date range 
             # in the combined pre- & post- retrofit dataset and compare the
             # two predictions to estimate savings 
-            # TODO: handle different dataset (e.g. TMY data)
             pre_model = self.p.y_standardizer.inverse_transform(
                                       self.m.best_model.predict(self.p.X_s))
             post_model = self.p.y_standardizer.inverse_transform(
                                     self.m_post.best_model.predict(self.p.X_s))
-            # predication basede on TMY data
-            locale = location.Location(self.address)
-            interval = str(self.p.interval_seconds/60)+'m'
-            tmy_data = location.TMYData(locale.lat, locale.lon, None, interval)
-            tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,'Ur')
-            self.p_tmy = Preprocessor(tmy_csv, self.p.X_standardizer)
-            pre_model_tmy = self.p.y_standardizer.inverse_transform(\
-                            self.m.best_model.predict(self.p_tmy.X_s))
-            post_model_tmy = self.p.y_standardizer.inverse_transform(\
-                            self.m_post.best_model.predict(self.p_tmy.X_s))
             self.error_metrics = comparer.Comparer(prediction=post_model,
                                                baseline=pre_model,
                                                p_X=self.p.X, 
-                                               names=self.p.name_list)
-            self.error_metrics_tmy = comparer.Comparer(\
-                                                   prediction=post_model_tmy,\
-                                                   baseline=pre_model_tmy,
-                                                   p_X=self.p.X,
-                                                   names = self.p.name_list)
+                                               names=self.p.name_list,
+                                               plot=plot)
+            # predication basede on TMY data
+            if use_TMY==True:
+                interval = str(self.p.interval_seconds/60)+'m'
+                if self.p.outside_dp_name is not None:
+                    use_dewpoint = True
+                else:
+                    use_dewpoint = False
+                tmy_data = location.TMYData(lat=self.locale.lat,
+                                            lon=self.locale.lon, 
+                                            year=None, interval=interval,
+                                            use_dp=use_dewpoint)
+                tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,
+                                                                       'Ur')
+                self.p_tmy = Preprocessor(input_file=tmy_csv,\
+                                          X_standardizer=self.p.X_standardizer)
+                pre_model_tmy = self.p.y_standardizer.inverse_transform(\
+                                self.m.best_model.predict(self.p_tmy.X_s))
+                post_model_tmy = self.p.y_standardizer.inverse_transform(\
+                                self.m_post.best_model.predict(self.p_tmy.X_s))
+                self.error_metrics_tmy = comparer.Comparer(\
+                                                    prediction=post_model_tmy,\
+                                                    baseline=pre_model_tmy,
+                                                    p_X=self.p.X,
+                                                    names = self.p.name_list)
 
         if save is True and address is None:
             pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
@@ -590,7 +635,7 @@ class MnV(object):
             pass 
 
     def __str__(self):
-        if self.address is None:
+        if self.address is None or self.address=='':
             rv = "\n===== Pre-retrofit model training summary ====="
             rv += str(self.m)
             rv += "\n===== Results ====="
@@ -623,5 +668,5 @@ if __name__=='__main__':
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
-    mnv = MnV(input_file=f, changepoints=cps,address='wurster hall, uc berkeley', save=True)
+    mnv = MnV(input_file=f, changepoints=cps,address='Wurster Hall, UC Berkeley', save=False)
     print mnv

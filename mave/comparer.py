@@ -13,33 +13,36 @@ import matplotlib.pyplot as plt
 
 class Comparer(object):
     DIGITS = 3
-    def __init__(self, prediction, baseline, p_X, names, **kwargs):
-        self.X = p_X
-        self.names = names
-        p = np.array(prediction).astype(np.float)
-        b = np.array(baseline).astype(np.float)
-        self.b_mean = np.mean(b)
+    def __init__(self, prediction, baseline,\
+                 p_X=None, names=None, plot=False,**kwargs):
+        if p_X!=None and names!=None:
+            self.names = names
+            self.X = np.core.records.fromarrays(p_X.transpose(),\
+                                                   names=self.names)
+        self.p = np.array(prediction).astype(np.float)
+        self.b = np.array(baseline).astype(np.float)
+        self.b_mean = np.mean(self.b)
         # error (overpredict is negative) 
-        self.e = b-p
+        self.e = self.b-self.p
         # total biased error
         self.tbe = round(sum(self.e),self.DIGITS)
         # normalized mean bias error
-        self.nmbe = round(100*sum(self.e)/self.b_mean/len(b),self.DIGITS)
+        self.nmbe = round(100*sum(self.e)/self.b_mean/len(self.b),self.DIGITS)
         # root mean squared error
-        self.rmse = math.sqrt(sum((self.e)**2)/len(b))
+        self.rmse = math.sqrt(sum((self.e)**2)/len(self.b))
         # coefficient of root mean squared error
         self.cvrmse = round(100*(self.rmse)/self.b_mean,self.DIGITS)
         # r2
-        self.r2 = round(1 - (sum(self.e**2)/sum((b - self.b_mean)**2)),
+        self.r2 = round(1 - (sum(self.e**2)/sum((self.b - self.b_mean)**2)),
                                                                self.DIGITS)
         # check for zeroes before division
-        if np.count_nonzero(b) < len(b):
+        if np.count_nonzero(self.b) < len(self.b):
             self.some_zeros = True
-            b[b==0.0] = np.nan      
+            self.b[self.b==0.0] = np.nan      
         else:
             self.some_zeros = False
         # normalized percentage error 
-        self.npe = 100*self.e/b
+        self.npe = 100*self.e/self.b
         self.npe_min = round(np.min(self.npe),self.DIGITS)
         self.npe_max= round(np.max(self.npe),self.DIGITS)
         self.npe_mean = round(np.mean(self.npe),self.DIGITS)
@@ -52,54 +55,170 @@ class Comparer(object):
         self.nape = abs(self.npe)
         # mean absolute percentage error
         self.mape = round(np.mean(self.nape),self.DIGITS)
-        self.plot(p,b) 
+        if plot == True:
+            self.plot()
 
-    def plot(self,baseline,prediction):
-        pp = PdfPages('report.pdf')
-        fig = plt.figure()
-        ax1 = fig.add_subplot(111)
-        ax1.scatter(range(len(baseline)),baseline, s=30, c='b',\
-                    label='baseline', edgecolors='none',alpha=0.55)
-        ax1.scatter(range(len(prediction)),prediction, s=30, c='y',\
-                    label='prediction',edgecolors='none',alpha=0.4)
-        plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
+    def plot(self):
+        with PdfPages('report.pdf') as pdf:
+            #scatterplot
+            fig1 = plt.figure()
+            ax1 = fig1.add_subplot(1,1,1)
+            ax1.set_title('Post-retrofit baseline vs. prediction')
+            ax1.set_ylabel('energy consumption in original unit')
+            ax1.set_xlabel('data points')
+            ax1.scatter(range(len(self.b)),self.b, s=20, c='b',\
+                        label='baseline', edgecolors='none',alpha=0.3)
+            ax1.scatter(range(len(self.p)),self.p, s=20, c='y',\
+                        label='prediction',edgecolors='none',alpha=0.3)
+            plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
+            plt.xlim(0,len(self.p)+80)
+            pdf.savefig(fig1)
+            plt.close()
 
-        #find the error in predicting the monthly peak value
-        monthly_peak_error = []
-        for i in range(1,13):
-            max_b = np.amax(np.extract(np.where(self.X[:,3]==i),baseline))
-            max_p = np.amax(np.extract(np.where(self.X[:,3]==i),prediction))
-            error = (max_b - max_p)/max_b
-            monthly_peak_error.append(error)
-        plt.plot((range(1,13),monthly_peak_error))
+            #snapshot of the first and last week
+            first_idx = np.where(self.X['day_of_week']==0)[0][0]
+            last_idx = np.where(self.X['day_of_week']==6)[0][-1]
+            if first_idx == 0:
+                first_idx = np.where(self.X['day_of_week']==1)[0][0]
+                last_idx = np.where(self.X['day_of_week']==0)[0][-1]
+                ran = (np.where(self.X['day_of_week']==2)[0][0]-first_idx)*7
+            else:
+                ran = (np.where(self.X['day_of_week']==1)[0][0]-first_idx)*7
+            fig2 = plt.figure()
+            ax2 = fig2.add_subplot(1,1,1)
+            ax2.set_title('snapshot of the first week of data')
+            ax2.set_ylabel('energy consumption in original unit')
+            ax2.set_xlabel('data points')
+            ax2.scatter(range(int(ran)),self.b[first_idx:first_idx+ran],\
+                       label='baseline',edgecolor='none',alpha=0.6,s=20,c='b')
+            ax2.scatter(range(int(ran)),self.p[first_idx:first_idx+ran],\
+                       label='prediction',edgecolor='none',alpha=0.6,s=20,c='y')
+            plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
+            plt.xlim(0,ran)
+            pdf.savefig(fig2)
+            plt.close()
 
-        #boxplot of error by the hour of day
-        bpdata_hour =[]
-        for i in range(24):
-            hour_b=np.extract(np.where(self.X[:,1]==i),baseline)
-            hour_p=np.extract(np.where(self.X[:,1]==i),prediction)
-            diff = hour_b - hour_p
-            bpdata_hour.append(100*diff/hour_b)
-        plt.boxplot(bpdata_hour)
-
-        #boxplot of error by the day of week
-        bpdata_week = []
-        for i in range(7):
-            week_b = np.extract(np.where(self.X[:2]==i),baseline)
-            week_p = np.extract(np.where(self.X[:2]==i),prediction)
-            diff = week_b - week_p
-            bpdata_week.append(100*diff/week_b)
-        plt.boxplot(bpdata_week)
-
+            fig3 = plt.figure()
+            ax3 = fig3.add_subplot(1,1,1)
+            ax3.set_title('snapshot of the last week of data')
+            ax3.set_ylabel('energy consumption in original unit')
+            ax3.set_xlabel('data points')
+            ax3.scatter(range(int(ran)),self.b[last_idx-ran:last_idx],\
+                       label='baseline',edgecolor='none',alpha=0.6,s=20,c='b')
+            ax3.scatter(range(int(ran)),self.p[last_idx-ran:last_idx],\
+                       label='prediction',edgecolor='none',alpha=0.6,s=20,c='y')
+            plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
+            plt.xlim(0,ran)
+            pdf.savefig(fig3)
+            plt.close()
             
-       # rows,row_pos = np.unique(self.X[:,1],return_inverse=True)
-       # cols,col_pos = np.unique(self.X[:,2],return_inverse=True)
-       # pt_hour_b = np.zeros((len(rows),len(cols)),dtype=self.X.dtype)
-       # pt_hour_p = pt_hour_b
-       # pt_hour_b[row_pos,col_pos] = baseline
-       # pt_hour_p[row_pos,col_pos] = prediction
-        pp.savefig()
-        pp.close()
+            #find the error in predicting the monthly peak value
+            monthly_peak_error = []
+            max_month = np.amax(self.X['month'])
+            if max_month > self.X['month'][0] and \
+               max_month > self.X['month'][-1]:
+                if self.X['month'][0]<=self.X['month'][-1]+1:
+                    months = range(1,13)
+                else:
+                    months = range(int(self.X['month'][0]), 13)+\
+                             range(1,int(self.X['month'][-1]+1))
+            else:
+                months = range(int(self.X['month'][0]),\
+                               int(self.X['month'][-1]+1))
+            for i in months:
+                try:
+                    max_b = np.amax(np.extract(np.where(self.X['month']==i),
+                                                               self.b))
+                    max_p = np.amax(np.extract(np.where(self.X['month']==i),
+                                                               self.p))
+                    monthly_peak_error.append(100*(max_b-max_p)/max_b)
+                except:
+                    pass
+            fig4 = plt.figure()
+            ax4 = fig4.add_subplot(1,1,1)
+            ax4.set_title('monthly peak error')
+            ax4.set_xlabel('month')
+            ax4.set_ylabel('Normalized percentage error (%)')
+            ax4.bar(np.array(months)-0.15,monthly_peak_error,0.3)
+            x = [1,2,3,4,5,6,7,8,9,10,11,12]
+            labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug',\
+                      'Sep','Oct','Nov','Dec']
+            plt.xticks(range(1,13),labels)
+            plt.xlim(0.5,12.5)
+            pdf.savefig(fig4)
+            plt.close()
+
+            #boxplot of error by the hour of day
+            bpdata_hour =[]
+            for i in range(24):
+                hour_b = np.extract(np.where(self.X['hour']==i),self.b)
+                hour_p = np.extract(np.where(self.X['hour']==i),self.p)
+                bpdata_hour.append(100*(hour_b-hour_p)/hour_b)
+            fig5 = plt.figure()
+            ax5 = fig5.add_subplot(1,1,1)
+            ax5.set_title('error by the hour of day')
+            ax5.set_xlabel('hour of day')
+            ax5.set_ylabel('Normalized percentage error (%)')
+            ax5.boxplot(bpdata_hour)
+            pdf.savefig(fig5)
+            plt.close()
+
+            #boxplot of error by the day of week
+            bpdata_week = []
+            for i in range(7):
+                week_b = np.extract(np.where(self.X['day_of_week']==i),
+                                                                 self.b)
+                week_p = np.extract(np.where(self.X['day_of_week']==i),
+                                                                 self.p)
+                bpdata_week.append(100*(week_b-week_p)/week_b)
+            fig6 = plt.figure()
+            ax6 = fig6.add_subplot(1,1,1)
+            ax6.set_title('error by the day of week')
+            ax6.set_xlabel('day of week')
+            ax6.set_ylabel('Normalized percentage error (%)')
+            ax6.boxplot(bpdata_week)
+            pdf.savefig(fig6)
+            plt.close()
+
+            #OAT vs. error
+            fig7 = plt.figure()
+            ax7 = fig7.add_subplot(1,1,1)
+            ax7.set_title('error by outside dry bulb temperature')
+            ax7.set_xlabel('Outside Dry Bulb Temperature ($^\circ$C)')
+            ax7.set_ylabel('absolute error')
+            ax7.scatter(self.X['OutsideDryBulbTemperature'],self.e,\
+                        edgecolor='none',alpha=0.3, s=20, c='b')
+            plt.xlim(-20,50)
+            pdf.savefig(fig7)
+            plt.close()
+             
+            #holiday vs. error
+            if 'holiday' in self.names:
+                fig8 = plt.figure()
+                ax8 = fig8.add_subplot(1,1,1)
+                ax8.set_title('error by closeness to holiday')
+                ax8.set_xlabel('days away from holiday')
+                ax8.set_ylabel('absolute error')
+                ax8.scatter(self.X['holiday'],self.e,edgecolor='none',\
+                            alpha=0.3, s=20, c='b')
+                x = [0,1,2,3]
+                label = ['0 Day','1 Day','2 Days','3 Days']
+                plt.xticks(x,label)
+                pdf.savefig(fig8)
+                plt.close()
+            
+           # Pivottable generation, in the case, hours are the rows and day
+           # of week are the columns.     
+           # rows,row_pos = np.unique(self.X[:,1],return_inverse=True)
+           # cols,col_pos = np.unique(self.X[:,2],return_inverse=True)
+           # pt_hour_b = np.zeros((len(rows),len(cols)),dtype=self.X.dtype)
+           # pt_hour_p = pt_hour_b
+           # pt_hour_b[row_pos,col_pos] = baseline
+           # pt_hour_p[row_pos,col_pos] = prediction
+
+            d = pdf.infodict()
+            d['Title'] = "Report"
+            d['Author'] = "repor automatically generated by Mave"
 
     def __str__(self):
         # returns a string idescribing how closely the arrays match each other
@@ -126,10 +245,20 @@ class Comparer(object):
 if __name__=='__main__': 
     import pdb
     import numpy as np
-    b = np.ones(10000,)*(np.random.random_sample(10000,)+0.5)
-    p = np.random.random_sample(10000,)+0.5
+    from datetime import datetime
+    def pdt(dt):
+        rv = float(dt.minute),float(dt.hour),float(dt.weekday()),float(dt.month)
+        return rv
+    b = np.ones(8759,)*(np.random.random_sample(8759,)+0.5)
+    p = np.random.random_sample(8759,)+0.5
     dts = np.arange('2010-01-01T00:00','2010-12-31T23:59',\
-                     dtype=('datetime64[m]'))
-    name = ['dt']  
-    c = Comparer(prediction=p,baseline=b,p_X=dts,names=name)
+                     dtype=('datetime64[h]')).astype(datetime)
+    vect_pdt = np.vectorize(pdt)
+    dt = np.column_stack(vect_pdt(dts))
+    names = ['minute','hour','day_of_week',\
+             'month','holiday','OutsideDryBulbTemperature']  
+    holiday = np.random.randint(4,size = 8759)
+    db = np.random.random_sample(8759,)+10
+    dt=np.column_stack((dt,holiday,db))
+    c = Comparer(prediction=p,baseline=b,p_X=dt,names=names,plot=True)
     print c

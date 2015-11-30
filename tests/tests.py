@@ -6,9 +6,9 @@ import numpy as np
 sys.path.insert(0, './mave/')
 sys.path.insert(0, '../mave/')
 import trainers
-from core import Preprocessor, ModelAggregator, SingleModelMnV
+from core import Preprocessor, ModelAggregator, MnV
 from comparer import Comparer
-from weather import Weather
+import location
 
 class Test(unittest.TestCase):
 
@@ -87,7 +87,7 @@ class Test(unittest.TestCase):
         self.assertTrue(m.error_metrics.cvrmse < 47.0)
         f.close()
 
-    def test_singlemnv(self):
+    def test_mnv(self):
         f = open(self.TEST_PATH_5, 'Ur')
         changepoints = [
                        ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
@@ -95,7 +95,7 @@ class Test(unittest.TestCase):
                        ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
                        ("2013/2/14 23:15", Preprocessor.POST_DATA_TAG),
                        ]
-        mnv = SingleModelMnV(f, changepoints=changepoints)
+        mnv = MnV(f, changepoints=changepoints)
         self.assertTrue(mnv.error_metrics.r2 > 0.25)
     
     def test_preprocessor_integer_data(self):   
@@ -105,17 +105,6 @@ class Test(unittest.TestCase):
         self.assertTrue(len(p.X) == 18406)
         self.assertTrue(p.X.shape == (18406,8))
         f.close()
-
-    def test_dualmnv(self):
-        f = open(self.TEST_PATH_7, 'Ur')
-        changepoints = [
-                       ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
-                       ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
-                       ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
-                       ("2013/2/14 23:15", Preprocessor.POST_DATA_TAG),
-                       ]
-        mnv = SingleModelMnV(f, changepoints=changepoints)
-        self.assertTrue(mnv.error_metrics.r2 >= 0.25)
 
     def test_random_forest(self):
         x = np.random.randint(10000, size=(10000,3))+100
@@ -142,18 +131,14 @@ class Test(unittest.TestCase):
     def test_getweather(self):
         start = datetime.datetime(2012,1,1,0,0)
         end = datetime.datetime(2012,1,3,0,0)
-        web = Weather(start=start,end=end,geocode='SFO',zipcode=None,
-                      key=None,interp_interval='15m',save=False)
-        geocode = None
-        api = Weather(start=start,end=end,geocode=None,zipcode='94128',
-                      key='d3dffb3b59309a05',interp_interval='15m',save=False)
-        f = open(self.WEATHER_PATH, 'Ur')
-        txt = np.genfromtxt(f.read().splitlines(), delimiter=',',dtype = None)
-        dat = txt['f5'][4:7]
+        web = location.Weather(start=start,end=end,key=None,\
+                               geocode='SFO',interp_interval='15m',save=False)
+        api = location.Weather(start=start,end=end,key='d3dffb3b59309a05',\
+                               geocode='SFO',interp_interval='15m',save=False)
         self.assertTrue(web.data != None)
-        self.assertAlmostEqual(float(web.data[0][0]),46.9)  
-        self.assertTrue(web.interp_data[0][3:6].all() == dat.all())
-        self.assertTrue(api.interp_data[0][3:6].all() == dat.all())
+        self.assertAlmostEqual(float(web.data[0][0]),8.277777777)  
+        self.assertAlmostEqual(float(api.data[0][0]),8.3)  
 
+        
 if __name__ == '__main__':
     unittest.main()

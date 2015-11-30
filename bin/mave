@@ -11,12 +11,14 @@ with predictions using the model.
 @author Tyler Hoyt <thoyt@berkeley.edu>
 """
 
-from mave.core import Preprocessor, ModelAggregator, SingleModelMnV
-from datetime import datetime
 import pdb
 import io
-import sys
 import os.path
+import sys
+sys.path.insert(0, './mave')
+sys.path.insert(0, '../mave')
+from core import Preprocessor, ModelAggregator, MnV
+from datetime import datetime
 import argparse
 import ConfigParser
 import logging
@@ -28,7 +30,7 @@ def mave(input_file=None,
          changepoint=None,
          **kwargs):
     kws ={}
-    config = ConfigParser.ConfigParser()
+    config = ConfigParser.ConfigParser(allow_no_value=True)
     if config_file: 
         try:
             if not os.path.isfile(config_file): raise Exception
@@ -64,7 +66,7 @@ def mave(input_file=None,
     logger.info('\nConfiguration used for this analysis:\n%s\n'%\
                 pprint.pformat(kws))
     f = open(input_file, 'Ur')
-    mnv = SingleModelMnV(input_file=f,**kws)
+    mnv = MnV(input_file=f,**kws)
     logger.info(mnv)
 
 if __name__=='__main__': 

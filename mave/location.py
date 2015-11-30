@@ -78,7 +78,7 @@ class Weather(object):
                                        .astype(datetime.datetime)
         interval = self.target_dts[-1]-self.target_dts[-2]
         self.target_dts = self.target_dts + (start-self.target_dts[0])
-        if self.target_dts[-1] < end - interval:
+        if self.target_dts[-1] <= (end - interval):
             self.target_dts = np.append(self.target_dts, \
                                         self.target_dts[-1]+ interval)
         unix_vec = np.vectorize(self.str_to_unix_api)
@@ -190,8 +190,8 @@ class Weather(object):
                                int(obs['date']['mday']),\
                                int(obs['date']['hour']),\
                                int(obs['date']['min']))
-        self.temp = obs['temps']
-        self.dewpt = obs['dewpts']
+        self.temp = obs['tempm']
+        self.dewpt = obs['dewptm']
         return self.dt, self.temp, self.dewpt
 
     def str_to_unix_api(self,s):
@@ -276,8 +276,8 @@ if __name__ == "__main__":
     end = datetime.datetime(2015,2,1,0,0)
     interp_interval = '15m'
     use_dp = False
-   # hist_weather = Weather(start,end,None,test.geocode,\
-   #                        interp_interval,False)
+    hist_weather = Weather(start,end,None,test.geocode,\
+                           interp_interval,False)
     test2 = TMYData(test.lat,test.lon,None,interp_interval,use_dp)
     print 'TMY file:',test2.tmy_file
     print 'TMY Data:', test2.cleaned_tmy
