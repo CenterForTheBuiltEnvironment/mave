@@ -527,9 +527,14 @@ class MnV(object):
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
-                                         baseline=measured_post_retrofit,
-                                         p_X=X_post, names=self.p.name_list,
-                                         plot=plot)
+                                         baseline=measured_post_retrofit)
+            if plot:
+                comparer.Plot(baseline=measured_post_retrofit,
+                              prediction=predicted_post_retrofit,
+                              p_X=X_post, name_list=self.p.name_list,
+                              model=str(self.m), em=str(self.error_metrics),
+                              fname='post')
+                
         else:
             self.locale = location.Location(self.address)
             # pre-process the input data file
@@ -555,6 +560,12 @@ class MnV(object):
                                                p_X=self.p.X, 
                                                names=self.p.name_list,
                                                plot=plot)
+            if plot:
+                comparer.Plot(baseline=pre_model,prediction=post_model,
+                              p_X=self.p.X,name_list=self.p.name_list,
+                              model=str(self.m),em=str(self.error_metrics),
+                              fname='dMnV_post')
+
             # predication basede on TMY data
             if use_TMY==True:
                 interval = str(self.p.interval_seconds/60)+'m'
@@ -579,6 +590,11 @@ class MnV(object):
                                                     baseline=pre_model_tmy,
                                                     p_X=self.p.X,
                                                     names = self.p.name_list)
+                if plot:
+                    comparer.Plot(baseline=pre_model_tmy,
+                                  prediction=post_model_tmy,
+                                  p_X=self.p.X,name_list=self.p.name_list,
+                                  fname='tmy')
 
         if save is True and address is None:
             pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
@@ -643,9 +659,6 @@ class MnV(object):
         	  " measured post-retrofit data and the predicted" + \
         	  " consumption:"
             rv += str(self.error_metrics)
-            rv += "\nThe total estimated energy savings in the post-retrofit"+\
-        	  " period (also known as the avoided energy cost) are:" + \
-        	  " %s [in the original units]"%round(self.error_metrics.tbe,2)
             return rv
         else:
             rv = "\n===== Pre-retrofit model training summary ====="
