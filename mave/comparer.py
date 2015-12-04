@@ -88,15 +88,21 @@ class Plot(object):
             self.b[self.b==0.0] = np.nan      
         npe = 100*(self.b-self.p)/self.b
         with PdfPages('report_%s.pdf'%(fname,)) as pdf:
-           # fig0 = plt.figure()
-           # pdb.set_trace()
-           # plt.axis([0,10,0,10])
-           # data=model
-           # data+=em
-           # plt.text(0,10,data)
-           # fig0.canvas.mpl_connect('draw_event',on_draw)
-           # pdf.savefig(fig0)
-           # plt.close()
+            fig00 = plt.figure()
+            plt.axis([0,10,0,10])
+            data=model
+            plt.text(0,0,data, fontsize=7,family='serif',wrap=True)
+            plt.axis('off')
+            pdf.savefig(fig00)
+            plt.close()
+
+            fig0 = plt.figure()
+            plt.axis([0,10,0,10])
+            data=em
+            plt.text(0,0,data, fontsize=7,family='serif',wrap=True)
+            plt.axis('off')
+            pdf.savefig(fig0)
+            plt.close()
             #scatterplot
             fig1 = plt.figure()
             ax1 = fig1.add_subplot(1,1,1)
