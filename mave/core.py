@@ -532,7 +532,7 @@ class MnV(object):
                 comparer.Plot(baseline=measured_post_retrofit,
                               prediction=predicted_post_retrofit,
                               p_X=X_post, name_list=self.p.name_list,
-                              model=str(self.m), em=str(self.error_metrics),
+                              text=str(self.error_metrics),
                               fname='post')
                 
         else:

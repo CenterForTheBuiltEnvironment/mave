@@ -77,7 +77,7 @@ class Comparer(object):
         return rv
 
 class Plot(object):
-    def __init__(self, baseline, prediction, p_X, name_list,model,em, fname):
+    def __init__(self, baseline, prediction, p_X, name_list,text, fname):
         if p_X!=None and name_list!=None:
             self.names = name_list
             self.X = np.core.records.fromarrays(p_X.transpose(),\
@@ -88,21 +88,14 @@ class Plot(object):
             self.b[self.b==0.0] = np.nan      
         npe = 100*(self.b-self.p)/self.b
         with PdfPages('report_%s.pdf'%(fname,)) as pdf:
-            fig00 = plt.figure()
-            plt.axis([0,10,0,10])
-            data=model
-            plt.text(0,0,data, fontsize=7,family='serif',wrap=True)
-            plt.axis('off')
-            pdf.savefig(fig00)
-            plt.close()
-
             fig0 = plt.figure()
             plt.axis([0,10,0,10])
-            data=em
-            plt.text(0,0,data, fontsize=7,family='serif',wrap=True)
+            data=model
+            plt.text(0, 0, data, fontsize=7, family='serif', wrap=True)
             plt.axis('off')
             pdf.savefig(fig0)
             plt.close()
+
             #scatterplot
             fig1 = plt.figure()
             ax1 = fig1.add_subplot(1,1,1)
@@ -117,7 +110,7 @@ class Plot(object):
                         rasterized=True)
             plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
             plt.xlim(0,1.1*len(self.p))
-            plt.ylim(0,1.1*np.amax(self.b))
+            plt.ylim(0,1.1*np.nanmax(self.b))
             pdf.savefig(fig1)
             plt.close()
 
