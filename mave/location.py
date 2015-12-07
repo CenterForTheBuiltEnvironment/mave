@@ -256,6 +256,7 @@ class TMYData(object):
             column_names = ['LocalDateTime','OutsideDryBulbTemperature','OutsideDewPointTemperature']
             interp_dp = np.interp(target_unix,unix_dt,tmy['DewPoint'])
             cleaned_tmy = np.column_stack((target_dts,interp_db,interp_dp))
+            cleaned_tmy = np.vstack((column_names,cleaned_tmy))
         else:
             column_names = ['LocalDateTime','OutsideDryBulbTemperature']
             cleaned_tmy = np.column_stack((target_dts,interp_db))   

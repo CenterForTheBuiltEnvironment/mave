@@ -62,6 +62,7 @@ class Preprocessor(object):
         self.verbose = verbose
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
+        self.outside_dp_name = outside_dp_name
         # process the headers
         self.headers, self.named_cols = self.process_headers()
         self.name_list = ['minute','hour','day_of_week','month']
@@ -482,8 +483,7 @@ class ModelAggregator(object):
         prediction = self.y_standardizer.inverse_transform(\
                                          self.best_model.predict(self.X))
         self.error_metrics = comparer.Comparer(prediction=prediction,\
-                                               baseline=baseline,\
-                                               plot=False)
+                                               baseline=baseline)
         return self.error_metrics
 
     def __str__(self):
@@ -509,10 +509,11 @@ class MnV(object):
                  input_file, 
                  address=None,
                  save=False,
-                 use_TMY=False,
+                 use_tmy=False,
                  plot=False, 
                  **kwargs):
         self.address = address
+        self.use_tmy = use_tmy
         if address is None or address=='':
             self.p = Preprocessor(input_file,**kwargs)
             self.m = ModelAggregator(X=self.p.X_pre_s,
@@ -525,6 +526,7 @@ class MnV(object):
             predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
                                     self.m.best_model.predict(self.p.X_post_s))
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
+            X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
             self.error_metrics = comparer.Comparer(\
                                          prediction=predicted_post_retrofit,
                                          baseline=measured_post_retrofit)
@@ -535,6 +537,10 @@ class MnV(object):
                               text=str(self.error_metrics),
                               fname='post')
                 
+                comparer.Plot(baseline=self.m.error_metrics.b,
+                              prediction=self.m.error_metrics.p,
+                              p_X=X_pre,name_list=self.p.name_list,
+                              text=str(self.m),fname='training')
         else:
             self.locale = location.Location(self.address)
             # pre-process the input data file
@@ -560,16 +566,26 @@ class MnV(object):
                                                p_X=self.p.X, 
                                                names=self.p.name_list,
                                                plot=plot)
+            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
+            X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
             if plot:
                 comparer.Plot(baseline=pre_model,prediction=post_model,
                               p_X=self.p.X,name_list=self.p.name_list,
-                              model=str(self.m),em=str(self.error_metrics),
+                              text=str(self.error_metrics),
                               fname='dMnV_post')
+                comparer.Plot(baseline=self.m.error_metrics.b,
+                              prediction=self.m.error_metrics.p,
+                              p_X=X_pre,name_list=self.p.name_list,
+                              text=str(self.m),fname='pre_training')
+                comparer.Plot(baseline=self.m_post.error_metrics.b,
+                              prediction=self.m_post.error_metrics.p,
+                              p_X=X_post,name_list=self.p.name_list,
+                              text=str(self.m_post),fname='post_training')
 
             # predication basede on TMY data
-            if use_TMY==True:
+            if use_tmy:
                 interval = str(self.p.interval_seconds/60)+'m'
-                if self.p.outside_dp_name is not None:
+                if self.p.outside_dp_name!=['']:
                     use_dewpoint = True
                 else:
                     use_dewpoint = False
@@ -588,12 +604,14 @@ class MnV(object):
                 self.error_metrics_tmy = comparer.Comparer(\
                                                     prediction=post_model_tmy,\
                                                     baseline=pre_model_tmy,
-                                                    p_X=self.p.X,
-                                                    names = self.p.name_list)
+                                                    p_X=self.p_tmy.X,
+                                                  names = self.p_tmy.name_list)
                 if plot:
                     comparer.Plot(baseline=pre_model_tmy,
                                   prediction=post_model_tmy,
-                                  p_X=self.p.X,name_list=self.p.name_list,
+                                  p_X=self.p_tmy.X,
+                                  name_list=self.p_tmy.name_list,
+                                  text=str(self.error_metrics_tmy),
                                   fname='tmy')
 
         if save is True and address is None:
@@ -671,6 +689,10 @@ class MnV(object):
         	  " One model was trained on the pre-retrofit data and the" + \
         	  " other was trained on the post-retrofit data:"
             rv += str(self.error_metrics)
+            if self.use_tmy:
+                rv += "\nThe following results show the prediction base on "+\
+                      "local TMY data"
+                rv += str(self.error_metrics_tmy)
             return rv
  
 if __name__=='__main__': 

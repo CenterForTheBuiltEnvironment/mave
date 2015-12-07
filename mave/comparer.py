@@ -87,11 +87,13 @@ class Plot(object):
         if np.count_nonzero(self.b) < len(self.b):
             self.b[self.b==0.0] = np.nan      
         npe = 100*(self.b-self.p)/self.b
+        e = self.b-self.p
         with PdfPages('report_%s.pdf'%(fname,)) as pdf:
+            #results text
             fig0 = plt.figure()
             plt.axis([0,10,0,10])
-            data=model
-            plt.text(0, 0, data, fontsize=7, family='serif', wrap=True)
+            data = text
+            plt.text(0, 0, data, fontsize=8, family='serif', wrap=True)
             plt.axis('off')
             pdf.savefig(fig0)
             plt.close()
@@ -100,17 +102,21 @@ class Plot(object):
             fig1 = plt.figure()
             ax1 = fig1.add_subplot(1,1,1)
             ax1.set_title('Post-retrofit baseline vs. prediction')
-            ax1.set_ylabel('Energy consumption in original unit')
+            ax1.set_ylabel('Energy consumption [in original units]')
             ax1.set_xlabel('Data points')
-            ax1.scatter(range(len(baseline)),self.b, s=20, c='b',\
-                        label='Baseline', edgecolors='none',alpha=0.3,\
-                        rasterized=True)
-            ax1.scatter(range(len(self.p)),self.p, s=20, c='y',\
-                        label='Prediction',edgecolors='none',alpha=0.3,\
-                        rasterized=True)
+            ax1.plot(np.mean(self.b),label='baseline mean',
+                     c='y',rasterized=True)
+            ax1.plot(e,label='baseline - prediction',c='b',rasterized=True)
+           # ax1.scatter(range(len(baseline)),self.b, s=20, c='b',\
+           #             label='Baseline', edgecolors='none',alpha=0.3,\
+           #             rasterized=True)
+           # ax1.scatter(range(len(self.p)),self.p, s=20, c='y',\
+           #             label='Prediction',edgecolors='none',alpha=0.3,\
+           #             rasterized=True)
             plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
             plt.xlim(0,1.1*len(self.p))
-            plt.ylim(0,1.1*np.nanmax(self.b))
+            if np.mean(self.b) > 0:
+                plt.ylim(0,1.1*np.nanmax(self.b))
             pdf.savefig(fig1)
             plt.close()
 
@@ -126,32 +132,34 @@ class Plot(object):
             fig2 = plt.figure()
             ax2 = fig2.add_subplot(1,1,1)
             ax2.set_title('Snapshot of the first week of data')
-            ax2.set_ylabel('Energy consumption in original unit')
+            ax2.set_ylabel('Energy consumption [in original units]')
             ax2.set_xlabel('Data points')
-            ax2.scatter(range(int(ran)),self.b[first_idx:first_idx+ran],\
-                       label='Baseline',edgecolor='none',alpha=0.6,s=20,c='b',\
+            ax2.plot(range(int(ran)),self.b[first_idx:first_idx+ran],\
+                       label='Baseline',c='b',\
                        rasterized=True)
-            ax2.scatter(range(int(ran)),self.p[first_idx:first_idx+ran],\
-                       label='Prediction',edgecolor='none',alpha=0.6,s=20,c='y',
+            ax2.plot(range(int(ran)),self.p[first_idx:first_idx+ran],\
+                       label='Prediction',c='y',
                        rasterized=True)
             plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
             plt.xlim(0,ran)
-            plt.ylim(0,1.1*np.amax(self.b[first_idx:first_idx+ran]))
+            if np.mean(self.b) > 0:
+                plt.ylim(0,1.1*np.nanmax(self.b[first_idx:first_idx+ran]))
             pdf.savefig(fig2)
             plt.close()
 
             fig3 = plt.figure()
             ax3 = fig3.add_subplot(1,1,1)
             ax3.set_title('Snapshot of the last week of data')
-            ax3.set_ylabel('Energy consumption in original unit')
+            ax3.set_ylabel('Energy consumption [in original units]')
             ax3.set_xlabel('Data points')
-            ax3.scatter(range(int(ran)),self.b[last_idx-ran:last_idx],\
-                       label='Baseline',edgecolor='none',alpha=0.6,s=20,c='b')
-            ax3.scatter(range(int(ran)),self.p[last_idx-ran:last_idx],\
-                       label='Prediction',edgecolor='none',alpha=0.6,s=20,c='y')
+            ax3.plot(range(int(ran)),self.b[last_idx-ran:last_idx],\
+                       label='Baseline',c='b')
+            ax3.plot(range(int(ran)),self.p[last_idx-ran:last_idx],\
+                       label='Prediction',c='y')
             plt.legend(loc='upper right',fontsize=8,markerscale=0.6)
             plt.xlim(0,ran)
-            plt.ylim(0,1.1*np.amax(self.b[first_idx:first_idx+ran]))
+            if np.mean(self.b) > 0:
+                plt.ylim(0,1.1*np.nanmax(self.b[first_idx:first_idx+ran]))
             pdf.savefig(fig3)
             plt.close()
             
@@ -179,8 +187,9 @@ class Plot(object):
             ax4 = fig4.add_subplot(1,1,1)
             ax4.set_title('Monthly peak error')
             ax4.set_xlabel('Month')
-            ax4.set_ylabel('Normalized percentage error (%)')
-            ax4.bar(np.array(months)-0.15,monthly_peak_error,0.3)
+            ax4.set_ylabel('Normalized percentage error [%]')
+            ax4.bar(np.array(months)-0.15,monthly_peak_error,0.3,
+                    rasterized=True)
             x = [1,2,3,4,5,6,7,8,9,10,11,12]
             labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug',\
                       'Sep','Oct','Nov','Dec']
@@ -189,8 +198,8 @@ class Plot(object):
             pdf.savefig(fig4)
             plt.close()
 
-            #boxplot of error by the hour of day
-            bpdata_hour =[]
+            #boxplot of percentage error by the hour of day
+            bpdata_hour = []
             for i in range(24):
                 hour_b = np.extract(self.X['hour']==i,self.b)
                 hour_p = np.extract(self.X['hour']==i,self.p)
@@ -199,13 +208,28 @@ class Plot(object):
             ax5 = fig5.add_subplot(1,1,1)
             ax5.set_title('Error by the hour of day')
             ax5.set_xlabel('Hour of day')
-            ax5.set_ylabel('Normalized percentage error (%)')
+            ax5.set_ylabel('Normalized percentage error [%]')
             plt.ylim(-100,100)
             ax5.boxplot(bpdata_hour)
             pdf.savefig(fig5)
             plt.close()
 
-            #boxplot of error by the day of week
+            #boxplot of error by the hour of day
+            bpdata_hour = []
+            for i in range(24):
+                hour_b = np.extract(self.X['hour']==i,self.b)
+                hour_p = np.extract(self.X['hour']==i,self.p)
+                bpdata_hour.append(hour_b-hour_p)
+            fig5 = plt.figure()
+            ax5 = fig5.add_subplot(1,1,1)
+            ax5.set_title('Error by the hour of day')
+            ax5.set_xlabel('Hour of day')
+            ax5.set_ylabel('Error [in original units]')
+            ax5.boxplot(bpdata_hour)
+            pdf.savefig(fig5)
+            plt.close()
+
+            #boxplot of percentage error by the day of week
             bpdata_week = []
             for i in range(7):
                 week_b = np.extract(self.X['day_of_week']==i, self.b)
@@ -215,42 +239,77 @@ class Plot(object):
             ax6 = fig6.add_subplot(1,1,1)
             ax6.set_title('Error by the day of week')
             ax6.set_xlabel('Day of week')
-            ax6.set_ylabel('Normalized percentage error (%)')
+            ax6.set_ylabel('Normalized percentage error [%]')
             plt.ylim(-100,100)
             ax6.boxplot(bpdata_week)
             pdf.savefig(fig6)
             plt.close()
 
-            #OAT vs. error
+            #boxplot of error by the day of week
+            bpdata_week = []
+            for i in range(7):
+                week_b = np.extract(self.X['day_of_week']==i, self.b)
+                week_p = np.extract(self.X['day_of_week']==i, self.p)
+                bpdata_week.append(week_b-week_p)
+            fig6 = plt.figure()
+            ax6 = fig6.add_subplot(1,1,1)
+            ax6.set_title('Error by the day of week')
+            ax6.set_xlabel('Day of week')
+            ax6.set_ylabel('Error [in original units]')
+            ax6.boxplot(bpdata_week)
+            pdf.savefig(fig6)
+            plt.close()
+
+            #OAT vs. percentage error
             if 'OutsideDryBulbTemperature' in self.names:
                 fig7 = plt.figure()
                 ax7 = fig7.add_subplot(1,1,1)
                 ax7.set_title('Error by outside dry bulb temperature')
                 ax7.set_xlabel('Outside Dry Bulb Temperature ($^\circ$C)')
-                ax7.set_ylabel('Normalized percentage error (%)')
-                ax7.scatter(self.X['OutsideDryBulbTemperature'],npe,\
-                            edgecolor='none',alpha=0.3, s=20, c='b',
-                            rasterized=True)
-                fitline = np.polyfit(self.X['OutsideDryBulbTemperature'], npe,1)
-                ax7.plot(fitline)
+                ax7.set_ylabel('Normalized percentage error [%]')
+                max_temp = int(np.nanmax(self.X['OutsideDryBulbTemperature']))
+                min_temp = int(np.nanmin(self.X['OutsideDryBulbTemperature']))
+                if max_temp > 45:
+                    max_temp = 45
+                if min_temp < -35:
+                    min_temp = -35
+                perror_temp = []
+                error_temp = []
+                for i in range(min_temp,max_temp):
+                    perror_temp.append(npe[np.nonzero(\
+                                    (self.X['OutsideDryBulbTemperature']>=i) &\
+                                    (self.X['OutsideDryBulbTemperature']<i+1))])
+                    error_temp.append(e[np.nonzero(\
+                                    (self.X['OutsideDryBulbTemperature']>=i) &\
+                                    (self.X['OutsideDryBulbTemperature']<i+1))])
+                ax7.boxplot(perror_temp)
                 plt.ylim(-100,100)
-                plt.xlim(-20,50)
                 pdf.savefig(fig7)
                 plt.close()
              
-            #holiday vs. error
+            #OAT vs. error
+                fig7s = plt.figure()
+                ax7s = fig7s.add_subplot(1,1,1)
+                ax7s.set_title('Error by outside dry bulb temperature')
+                ax7s.set_xlabel('Outside Dry Bulb Temperature ($^\circ$C)')
+                ax7s.set_ylabel('Error [in original units]')
+                ax7s.boxplot(error_temp)
+                pdf.savefig(fig7s)
+                plt.close()
+
+            #holiday vs. percentage error
             if 'holiday' in self.names:
-                holiday_error=[]
+                holiday_perror=[]
                 for i in range(0,4):
                     holiday_b = np.extract(self.X['holiday']==i, self.b)
                     holiday_p = np.extract(self.X['holiday']==i, self.p)
-                    holiday_error.append(100*(holiday_b-holiday_p)/holiday_b)
+                    holiday_perror.append(100*(holiday_b-holiday_p)/holiday_b)
                 fig8 = plt.figure()
                 ax8 = fig8.add_subplot(1,1,1)
                 ax8.set_title('Error by closeness to holidays')
                 ax8.set_xlabel('Days away from holidays')
-                ax8.set_ylabel('Normalized percentage error (%)')
-                ax8.boxplot(holiday_error)
+                ax8.set_ylabel('Normalized percentage error [%]')
+                ax8.boxplot(holiday_perror)
                 x = [0,1,2,3,4]
                 label = ['','>=3 Day','2 Day','1 Days','0 Days']
                 plt.xticks(x,label)
@@ -258,6 +317,23 @@ class Plot(object):
                 pdf.savefig(fig8)
                 plt.close()
             
+            #holiday vs. error
+                holiday_error=[]
+                for i in range(0,4):
+                    holiday_b = np.extract(self.X['holiday']==i, self.b)
+                    holiday_p = np.extract(self.X['holiday']==i, self.p)
+                    holiday_error.append(holiday_b-holiday_p)
+                fig8 = plt.figure()
+                ax8 = fig8.add_subplot(1,1,1)
+                ax8.set_title('Error by closeness to holidays')
+                ax8.set_xlabel('Days away from holidays')
+                ax8.set_ylabel('Error [in original units]')
+                ax8.boxplot(holiday_error)
+                x = [0,1,2,3,4]
+                label = ['','>=3 Days','2 Days','1 Day','0 Day']
+                plt.xticks(x,label)
+                pdf.savefig(fig8)
+                plt.close()
            # Pivottable generation, in the case, hours are the rows and day
            # of week are the columns.     
            # rows,row_pos = np.unique(self.X[:,1],return_inverse=True)
