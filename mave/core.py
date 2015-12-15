@@ -511,160 +511,139 @@ class MnV(object):
                  **kwargs):
         if address == '': address = None
         self.address = address
-        self.use_tmy = use_tmy
-        if address is None:
-            self.p = Preprocessor(input_file,**kwargs)
-            self.m = ModelAggregator(X=self.p.X_pre_s,
-                                     y=self.p.y_pre_s,
-                                     y_standardizer=self.p.y_standardizer) 
-            self.m.train_all(**kwargs)
-            # evaluate the output of the model against the post-retrofit data
-            measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
-                                                             self.p.y_post_s)
-            predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
-                                    self.m.best_model.predict(self.p.X_post_s))
-            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
-            self.error_metrics = comparer.Comparer(\
-                                         prediction=predicted_post_retrofit,
-                                         baseline=measured_post_retrofit)
-            if plot:
-                comparer.Plot(baseline=measured_post_retrofit,
-                              prediction=predicted_post_retrofit,
-                              p_X=X_post, name_list=self.p.name_list,
-                              text=str(self.error_metrics),
-                              fname='Estimated_savings_report')
-                
-                comparer.Plot(baseline=self.m.error_metrics.b,
-                              prediction=self.m.error_metrics.p,
-                              p_X=X_pre,name_list=self.p.name_list,
-                              text=str(self.m),fname='Pre_training_report')
+        if self.address is None:
+            self.locale = None
         else:
             self.locale = location.Location(self.address)
-            # pre-process the input data file
-            self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
-            self.m = ModelAggregator(X=self.p.X_pre_s,
-                                     y=self.p.y_pre_s,
-                                     y_standardizer=self.p.y_standardizer) 
-            self.m.train_all(**kwargs)
-            # build a second model based on the post-retrofit data 
-            self.m_post = ModelAggregator(X=self.p.X_post_s,
-                                         y=self.p.y_post_s,
-                                         y_standardizer=self.p.y_standardizer) 
-            self.m_post.train_all(**kwargs)
-            # evaluate the output of both models over the date range 
-            # in the combined pre- & post- retrofit dataset and compare the
-            # two predictions to estimate savings 
-            pre_model = self.p.y_standardizer.inverse_transform(
-                                      self.m.best_model.predict(self.p.X_s))
-            post_model = self.p.y_standardizer.inverse_transform(
-                                    self.m_post.best_model.predict(self.p.X_s))
-            self.error_metrics = comparer.Comparer(prediction=post_model,
-                                               baseline=pre_model,
-                                               p_X=self.p.X, 
-                                               names=self.p.name_list,
-                                               plot=plot)
-            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
-            if plot:
-                comparer.Plot(baseline=pre_model,prediction=post_model,
-                              p_X=self.p.X,name_list=self.p.name_list,
-                              text=str(self.error_metrics),
-                              fname='Estimated_savings_report')
-                comparer.Plot(baseline=self.m.error_metrics.b,
-                              prediction=self.m.error_metrics.p,
-                              p_X=X_pre,name_list=self.p.name_list,
-                              text=str(self.m),fname='Pre_training_report')
-                comparer.Plot(baseline=self.m_post.error_metrics.b,
-                              prediction=self.m_post.error_metrics.p,
-                              p_X=X_post,name_list=self.p.name_list,
-                              text=str(self.m_post),fname='Post_training_report')
+        self.use_tmy = use_tmy
 
-            # prediction based on TMY data
-            if use_tmy:
-                interval = str(self.p.interval_seconds/60)+'m'
-                if self.p.outside_dp_name!=['']:
-                    use_dewpoint = True
-                else:
-                    use_dewpoint = False
-                tmy_data = location.TMYData(lat=self.locale.lat,
-                                            lon=self.locale.lon, 
-                                            year=None, interval=interval,
-                                            use_dp=use_dewpoint)
-                tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,
-                                                                       'Ur')
-                self.p_tmy = Preprocessor(input_file=tmy_csv,\
-                                          X_standardizer=self.p.X_standardizer)
-                pre_model_tmy = self.p.y_standardizer.inverse_transform(\
-                                self.m.best_model.predict(self.p_tmy.X_s))
-                post_model_tmy = self.p.y_standardizer.inverse_transform(\
-                                self.m_post.best_model.predict(self.p_tmy.X_s))
-                self.error_metrics_tmy = comparer.Comparer(\
-                                                    prediction=post_model_tmy,\
-                                                    baseline=pre_model_tmy,
-                                                    p_X=self.p_tmy.X,
-                                                  names = self.p_tmy.name_list)
-                if plot:
-                    comparer.Plot(baseline=pre_model_tmy,
-                                  prediction=post_model_tmy,
-                                  p_X=self.p_tmy.X,
-                                  name_list=self.p_tmy.name_list,
-                                  text=str(self.error_metrics_tmy),
-                                  fname='tmy')
-
-        if save is True and address is None:
-            pickle.Pickler(open('model.pkl', 'wb'), -1).dump(
+        # pre-process the input data file
+        self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
+        self.m = ModelAggregator(X=self.p.X_pre_s,
+                                 y=self.p.y_pre_s,
+                                 y_standardizer=self.p.y_standardizer) 
+        self.m.train_all(**kwargs)
+        if plot:
+            comparer.Plot(baseline=self.m.error_metrics.b,
+                          prediction=self.m.error_metrics.p,
+                          p_X=X_pre,name_list=self.p.name_list,
+                          text=str(self.m),fname='Pre_training_report')
+        if save:
+            pickle.Pickler(open('pre_model.pkl', 'wb'), -1).dump(
                                            self.m.best_model.best_estimator_)
+
+        # single model (no weather lookup, no tmy normalization)
+        # evaluate the output of the model against the post-retrofit data
+        measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
+                                                         self.p.y_post_s)
+        predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
+                                self.m.best_model.predict(self.p.X_post_s))
+        X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
+        X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
+        self.error_metrics = comparer.Comparer(\
+                                     prediction=predicted_post_retrofit,
+                                     baseline=measured_post_retrofit)
+        if plot:
+            comparer.Plot(baseline=measured_post_retrofit,
+                          prediction=predicted_post_retrofit,
+                          p_X=X_post, name_list=self.p.name_list,
+                          text=str(self.error_metrics),
+                          fname='Estimated_savings_report')
+        if save:
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
-                                                          self.error_metrics)
+                                                           self.error_metrics)
             str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
                            self.p.dts_post)
             X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
             if self.p.use_holidays: 
                 header = 'datetime,minute,hour,dayofweek,month,'+\
-                         'holiday,outsideDB,outsideDB8'+\
+                         'holiday,outsideDB,outsideDB8,'+\
                          'outsideDB16,measured,predicted'
             else:
                 header = 'datetime.minute,hour,dayofweek,month,'+\
                          'outsideDB,outsideDB8,outsideDB16,'+\
                          'measured,predicted'
-            post_data = np.column_stack((np.array(str_date),
+            results = np.column_stack((np.array(str_date),
                                          X_post,
                                          measured_post_retrofit,
                                          predicted_post_retrofit,))
-            np.savetxt('post.csv', 
-                       post_data, 
+            np.savetxt('Results.csv', 
+                       results, 
                        delimiter=',', 
                        header= header,
                        fmt='%s',
                        comments = '')
 
-        elif save is True and address is not None:
-            pickle.Pickler(open('model_pre.pkl', 'wb'), -1).dump(
-                                           self.m.best_model.best_estimator_)
-            pickle.Pickler(open('model_post.pkl', 'wb'), -1).dump(
-                                           self.m.best_model.best_estimator_)
-            pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
-                                                          self.error_metrics)
-            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
-                           self.p.dts)
-            if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,'+\
-                         'month,holiday,outsideDB,outsideDB8,'+\
-                         'outsideDB16,measured,predicted'
+        if address is not None and self.use_tmy:
+            # build a second model based on the post-retrofit data 
+            self.m_post = ModelAggregator(X=self.p.X_post_s,
+                                         y=self.p.y_post_s,
+                                         y_standardizer=self.p.y_standardizer) 
+            self.m_post.train_all(**kwargs)
+            if plot:
+                comparer.Plot(baseline=self.m_post.error_metrics.b,
+                              prediction=self.m_post.error_metrics.p,
+                              p_X=X_post,name_list=self.p.name_list,
+                              text=str(self.m_post),fname='Post_training_report')
+            if save:
+                pickle.Pickler(open('post_model.pkl', 'wb'), -1).dump(
+                                       self.m_post.best_model.best_estimator_)
+            interval = str(self.p.interval_seconds/60)+'m'
+            if self.p.outside_dp_name!=['']:
+                use_dewpoint = True
             else:
-                header = 'datetime,minute,hour,dayofweek,'+\
-                         'month,outsideDB,outsideDB,outsideDB16,'+\
-                         'measured,predicted'
-            post_data = np.column_stack((np.array(str_date),
-                                         self.p.X,
-                                         pre_model,
-                                         post_model,))
-            np.savetxt('d_post.csv', post_data,\
-                        delimiter=',', header= header,\
-                        fmt='%s',comments = '')
-        else:
-            pass 
+                use_dewpoint = False
+            tmy_data = location.TMYData(lat=self.locale.lat,
+                                        lon=self.locale.lon, 
+                                        year=None, interval=interval,
+                                        use_dp=use_dewpoint)
+            tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,
+                                                                   'Ur')
+            self.p_tmy = Preprocessor(input_file=tmy_csv,\
+                                      X_standardizer=self.p.X_standardizer)
+            pre_model_tmy = self.p.y_standardizer.inverse_transform(\
+                            self.m.best_model.predict(self.p_tmy.X_s))
+            post_model_tmy = self.p.y_standardizer.inverse_transform(\
+                            self.m_post.best_model.predict(self.p_tmy.X_s))
+            self.error_metrics_tmy = comparer.Comparer(\
+                                              prediction=post_model_tmy,\
+                                              baseline=pre_model_tmy,
+                                              p_X=self.p_tmy.X,
+                                              names = self.p_tmy.name_list)
+            if plot:
+                comparer.Plot(baseline=pre_model_tmy,
+                              prediction=post_model_tmy,
+                              p_X=self.p_tmy.X,
+                              name_list=self.p_tmy.name_list,
+                              text=str(self.error_metrics_tmy),
+                              fname='Normalized_savings_report')
+            if save:
+                pickle.Pickler(open('tmy_error_metrics.pkl', 'wb'), -1).dump(
+                                       self.error_metrics_tmy)
+                str_date = map(lambda arr: arr.strftime(\
+                                        self.p_tmy.timestamp_format),\
+                                        self.p_tmy.dts_post)
+                X_post = self.p_tmy.X_standardizer.inverse_transform(\
+                                                           self.p_tmy.X_post_s)
+                if self.p_tmy.use_holidays: 
+                    header = 'datetime,minute,hour,dayofweek,month,'+\
+                             'holiday,outsideDB,outsideDB8,'+\
+                             'outsideDB16,pre_model_prediction,'+\
+                             'post_model_prediction'
+                else:
+                    header = 'datetime.minute,hour,dayofweek,month,'+\
+                             'outsideDB,outsideDB8,outsideDB16,'+\
+                             'pre_model prediction,post_model_prediction'
+                normalized_results = np.column_stack((np.array(str_date),
+                                                     X_post,
+                                                     pre_model_tmy,
+                                                     post_model_tmy,))
+                np.savetxt('Normalized_results.csv', 
+                           normalized_results, 
+                           delimiter=',', 
+                           header= header,
+                           fmt='%s',
+                           comments = '')
 
     def __str__(self):
         if self.address is None or self.address=='':
