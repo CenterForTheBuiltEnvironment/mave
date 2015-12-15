@@ -41,7 +41,7 @@ def mave(input_file=None,
         config.read(config_file)
     else:
         # no config file passed, use defaults:
-        print '\nUsing default settings as no valid config file was found' 
+        print '\nNo config file entered - Using default settings' 
         default = pkgutil.get_data('mave', 'config/default.cfg')
         config.readfp(io.BytesIO(default))
     for name in config.options('Booleans'):
@@ -89,6 +89,8 @@ if __name__=='__main__':
                      help="print to screen as well as log file")
     prs.add_argument("-s", "--save", action="store_true",
                      help="save model and output detailed results")
+    prs.add_argument("-pl", "--plot", action="store_true",
+                     help="plot results to pdf")
     # high level controls on total computation time
     prs.add_argument("-n", "--n_jobs", type=int,
                      help="num parallel jobs (default uses max available")

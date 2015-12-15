@@ -54,10 +54,10 @@ class Comparer(object):
     def __str__(self):
         # returns a string idescribing how closely the arrays match each other
         rv = '\n\nNote that values are negative when the model predicts'
-        rv += ' a higher value than the baseline (i.e. overprediction)'
+        rv += ' a higher value than the baseline (i.e. savings)'
         if self.some_zeros:
             rv += '\n\n*** There are zero values in the baseline data' + \
-                  ' rendering some comparisons meaningless.\n' 
+                  ' rendering some comparison metrics meaningless.\n' 
         rv += '\nTotal Biased Error: %s [in original units]'%str(self.tbe)
         rv +='\nNormalized Mean Bias Error: %s %%'%str(self.nmbe)
         rv +='\nMean Absolute Percent Error: %s %%'%str(self.mape)
@@ -71,14 +71,12 @@ class Comparer(object):
         rv +='\nNormalized error, 75th percentile: %s %%'%str(self.npe_75th)
         rv +='\nNormalized error, 90th percentile: %s %%'%str(self.npe_90th)
         rv +='\nNormalized error, max: %s %%\n'%str(self.npe_max)
-        rv +="\nThe total estimated energy savings in the post-retrofit"+\
-             " period (also known as the avoided energy cost) are:" +\
-             " %s [in the original units]"%round(self.tbe,2)
+        rv +="\nThe total error is: %s [in original units]"%round(self.tbe,2)
         return rv
 
 class Plot(object):
     def __init__(self, baseline, prediction, p_X, name_list,text, fname):
-        if p_X!=None and name_list!=None:
+        if p_X is not None and name_list is not None:
             self.names = name_list
             self.X = np.core.records.fromarrays(p_X.transpose(),\
                                                    names=self.names)

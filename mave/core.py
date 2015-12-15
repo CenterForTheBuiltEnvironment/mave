@@ -46,9 +46,9 @@ class Preprocessor(object):
                  dayfirst=False,
                  yearfirst=False,
                  locale=None,
-                 outside_db_name = ['OutsideDryBulbTemperature'],
-                 outside_dp_name = None,
-                 target_name = ['EnergyConsumption'],
+                 outside_db_name = 'OutsideDryBulbTemperature',
+                 outside_dp_name = 'OutsideDewPointTemperature',
+                 target_name = 'EnergyConsumption',
                  remove_outliers = 'SingleValue',
                  X_standardizer = None,
                  previous_data_points = 2,
@@ -189,14 +189,12 @@ class Preprocessor(object):
             datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
-    def append_input_features(self, data, d0, hist_data_names,\
-                              target_names, previous_data_points=2):
+    def append_input_features(self, data, d0, outside_db_name,\
+                              target_name, previous_data_points=2):
         column_names = data.dtype.names[1:] # no need to include datetime column
         d = d0
         for s in column_names:
-            if s in hist_data_names:
-                if np.greater(data[s],60).any()==True:
-                    data[s] = (data[s]-32)/1.8
+            if s == outside_db_name:
                 d = np.column_stack( (d, data[s]) )
                 self.name_list.append(str(s))
                 if previous_data_points > 0:
@@ -213,15 +211,14 @@ class Preprocessor(object):
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
                         self.name_list.append(str(s)+'_'+ str(past_hours))
-            elif not s in target_names:
+            elif not s == target_name:
                 # just add the column as an input feature 
                 # without historical data
                 d = np.column_stack( (d, data[s]) )
         # add the target data
         split = d.shape[1]
-        for s in target_names:
-            if s in column_names:
-                d = np.column_stack( (d, data[s]) )
+        if target_name in column_names:
+            d = np.column_stack( (d, data[target_name]) )
         return d, split
 
     def is_single_value_outlier(self, y, med_diff_multiple=100):
@@ -359,7 +356,7 @@ class Preprocessor(object):
         else:
             pass
         self.X_s = self.X_standardizer.transform(self.X)
-        if self.y != None:
+        if self.y is not None:
             self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
             self.y_s = self.y_standardizer.transform(self.y)
             if self.cps is not None:
@@ -512,9 +509,10 @@ class MnV(object):
                  use_tmy=False,
                  plot=False, 
                  **kwargs):
+        if address == '': address = None
         self.address = address
         self.use_tmy = use_tmy
-        if address is None or address=='':
+        if address is None:
             self.p = Preprocessor(input_file,**kwargs)
             self.m = ModelAggregator(X=self.p.X_pre_s,
                                      y=self.p.y_pre_s,
@@ -535,12 +533,12 @@ class MnV(object):
                               prediction=predicted_post_retrofit,
                               p_X=X_post, name_list=self.p.name_list,
                               text=str(self.error_metrics),
-                              fname='post')
+                              fname='Estimated_savings_report')
                 
                 comparer.Plot(baseline=self.m.error_metrics.b,
                               prediction=self.m.error_metrics.p,
                               p_X=X_pre,name_list=self.p.name_list,
-                              text=str(self.m),fname='training')
+                              text=str(self.m),fname='Pre_training_report')
         else:
             self.locale = location.Location(self.address)
             # pre-process the input data file
@@ -572,17 +570,17 @@ class MnV(object):
                 comparer.Plot(baseline=pre_model,prediction=post_model,
                               p_X=self.p.X,name_list=self.p.name_list,
                               text=str(self.error_metrics),
-                              fname='dMnV_post')
+                              fname='Estimated_savings_report')
                 comparer.Plot(baseline=self.m.error_metrics.b,
                               prediction=self.m.error_metrics.p,
                               p_X=X_pre,name_list=self.p.name_list,
-                              text=str(self.m),fname='pre_training')
+                              text=str(self.m),fname='Pre_training_report')
                 comparer.Plot(baseline=self.m_post.error_metrics.b,
                               prediction=self.m_post.error_metrics.p,
                               p_X=X_post,name_list=self.p.name_list,
-                              text=str(self.m_post),fname='post_training')
+                              text=str(self.m_post),fname='Post_training_report')
 
-            # predication basede on TMY data
+            # prediction based on TMY data
             if use_tmy:
                 interval = str(self.p.interval_seconds/60)+'m'
                 if self.p.outside_dp_name!=['']:
