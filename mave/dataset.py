@@ -60,9 +60,7 @@ class Dataset(object):
             self.y = self.y_standardizer.transform(self.y_s)
         assert self.X.shape[0] == len(self.y), \
                "length of X (%s) doesn't match y (%s)"%(X.shape[0],len(self.y))
-        # ensure a set of datetimes is present and the correct length
-        assert isinstance(dts,list), \
-               "dts is not a list object: %s"%type(dts)
+        # ensure datetimes are the correct length
         assert len(dts) == len(self.y), \
                "length of dts (%s) doesn't match y (%s)"%(len(dts),len(self.y))
         self.dts = dts
