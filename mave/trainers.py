@@ -18,7 +18,7 @@ class ModelTrainer(object):
         self.k = k
         self.verbose = verbose
     
-    def train(self, X_s, y_s, randomized_search=True):
+    def train(self, dataset, randomized_search=True):
         # using a random grid search assessed using k-fold cross validation
         if randomized_search:
             self.model = grid_search.RandomizedSearchCV(
@@ -37,7 +37,7 @@ class ModelTrainer(object):
                                      cv=self.k,
                                      verbose=self.verbose)
 
-        self.model.fit(X_s, y_s)
+        self.model.fit(dataset.X_s, dataset.y_s)
         return self.model
 
 class DummyTrainer(ModelTrainer):
