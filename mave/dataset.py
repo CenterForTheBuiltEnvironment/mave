@@ -2,20 +2,20 @@
 This class is a wrapper for all of data required to train or evaluate a model
 
 the dataset_type field is to help standardize notation of different datasets:
-    1:'measured preretrofit data'
-    2:'preretrofit data predicted using preretrofit model'
-    3:'preretrofit data predicted using postretrofit model'
-    4:'measured postretofit data'
-    5:'postretrofit data predicted using preretrofit model'
-    6:'postretrofit data predicted using postretrofit model'
-    7:'tmy data predicted using preretrofit model'
-    8:'tmy data predicted using postretrofit model'
+    A:'measured preretrofit data'
+    B:'preretrofit data predicted using preretrofit model'
+    C:'preretrofit data predicted using postretrofit model'
+    D:'measured postretofit data'
+    E:'postretrofit data predicted using preretrofit model'
+    F:'postretrofit data predicted using postretrofit model'
+    G:'tmy data predicted using preretrofit model'
+    H:'tmy data predicted using postretrofit model'
 
 typical comparisons used by mave:
-    Pre-retrofit model performance = 1 vs 2
-    Single model M&V = 4 vs 5
-    Post retrofit model performance  = 4 vs 6
-    Dual model M&V, normalized to tmy data = 7 vs 8
+    Pre-retrofit model performance = A vs B
+    Single model M&V = D vs E
+    Post retrofit model performance  = D vs F
+    Dual model M&V, normalized to tmy data = G vs H
 
 @author Paul Raftery <p.raftery@berkeley.edu>
 """
@@ -34,7 +34,7 @@ class Dataset(object):
                  y_s=None,
                  y_standardizer=None):
         assert isinstance(dataset_type,int)
-        assert dataset_type in set([1,2,3,4,5,6,7,8])
+        assert dataset_type in set(['A','B','C','D','E','F','G','H'])
         self.dataset_type = dataset_type
         # ensure standardizers are present
         assert isinstance(X_standardizer, preprocessing.data.StandardScaler)
@@ -83,14 +83,14 @@ class Dataset(object):
                    comments='')
 
     def __str__(self):
-        desc ={1:'measured preretrofit data',
-               2:'preretrofit data predicted using preretrofit model',
-               3:'preretrofit data predicted using postretrofit model',
-               4:'measured postretofit data',
-               5:'postretrofit data predicted using preretrofit model',
-               6:'postretrofit data predicted using postretrofit model',
-               7:'tmy data predicted using preretrofit model',
-               8:'tmy data predicted using postretrofit model'}
+        desc ={'A':'measured preretrofit data',
+               'B':'preretrofit data predicted using preretrofit model',
+               'C':'preretrofit data predicted using postretrofit model',
+               'D':'measured postretofit data',
+               'E':'postretrofit data predicted using preretrofit model',
+               'F':'postretrofit data predicted using postretrofit model',
+               'G':'tmy data predicted using preretrofit model',
+               'H':'tmy data predicted using postretrofit model'}
         return 'Dataset type: %s, %s'%(self.dataset_type,desc[self.dataset_type])
 
 if __name__=='__main__':
@@ -102,7 +102,7 @@ if __name__=='__main__':
    y_standardizer = preprocessing.StandardScaler().fit(y)
    dts = [1,2,3,4,5,6]
    feature_names = ['Minute','Hour','DayOfWeek']
-   test = Dataset(dataset_type=1,
+   test = Dataset(dataset_type='A',
                   X=X,
                   X_standardizer=X_standardizer,
                   y=y,

@@ -52,7 +52,7 @@ class Comparer(object):
         self.mape = round(np.mean(self.nape),self.DIGITS)
 
     def __str__(self):
-        # returns a string idescribing how closely the arrays match each other
+        # returns a string describing how closely the arrays match each other
         rv = '\n\nNote that values are negative when the model predicts'
         rv += ' a higher value than the baseline (i.e. savings)'
         if self.some_zeros:
