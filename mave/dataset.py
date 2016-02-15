@@ -33,17 +33,19 @@ class Dataset(object):
                  y=None,
                  y_s=None,
                  y_standardizer=None):
-        assert isinstance(dataset_type,int)
-        assert dataset_type in set(['A','B','C','D','E','F','G','H'])
+        assert isinstance(dataset_type,str), \
+               "dataset_type is not a char: %s"%dataset_type
+        assert dataset_type in set(['A','B','C','D','E','F','G','H']), \
+               "dataset_type is no a character from A to H: %str"%datase_type
         self.dataset_type = dataset_type
         # ensure standardizers are present
-        assert isinstance(X_standardizer, preprocessing.data.StandardScaler)
-        assert isinstance(y_standardizer, preprocessing.data.StandardScaler)
+        assert isinstance(X_standardizer, preprocessing.data.StandardScaler), \
+               "X_standardizer is not an instance of preprocessing.data.StandardScaler:%s"%type(X_standardizer)
+        assert isinstance(y_standardizer, preprocessing.data.StandardScaler), \
+               "y_standardizer is not an instance of preprocessing.data.StandardScaler:%s"%type(y_standardizer)
         self.X_standardizer = X_standardizer
         self.y_standardizer = y_standardizer
         # ensure both representations of X and y are present and same length
-        assert isinstance(X, np.ndarray) or isinstance(X_s, np.ndarry)
-        assert isinstance(y, np.ndarray) or isinstance(y_s, np.ndarry)
         self.X = X
         self.X_s = X_s
         self.y = y
@@ -56,14 +58,19 @@ class Dataset(object):
             self.y_s = self.y_standardizer.inverse_transform(self.y)
         if not isinstance(self.y,np.ndarray):
             self.y = self.y_standardizer.transform(self.y_s)
-        assert self.X.shape[0] == len(self.y)
+        assert self.X.shape[0] == len(self.y), \
+               "length of X (%s) doesn't match y (%s)"%(X.shape[0],len(self.y))
         # ensure a set of datetimes is present and the correct length
-        assert isinstance(dts,list)
-        assert len(dts) == len(self.y)
+        assert isinstance(dts,list), \
+               "dts is not a list object: %s"%type(dts)
+        assert len(dts) == len(self.y), \
+               "length of dts (%s) doesn't match y (%s)"%(len(dts),len(self.y))
         self.dts = dts
         # ensure a set of feature names is present and of correct length
-        assert isinstance(feature_names,list)
-        assert len(feature_names) == X.shape[1]
+        assert isinstance(feature_names,list), \
+               "feature_names is not a list object: %s"%type(feature_names)
+        assert len(feature_names) == X.shape[1], \
+               "different num of feature_names than features"
         self.feature_names = feature_names
         
     def write_to_csv(self, filename='Results.csv'):
