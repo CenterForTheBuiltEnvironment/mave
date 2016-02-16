@@ -67,12 +67,12 @@ class Preprocessor(object):
         self.outside_dp_name = outside_dp_name
         # process the headers
         self.headers, self.named_cols = self.process_headers()
-        self.name_list = ['minute','hour','day_of_week','month']
+        self.feature_names = ['Minute','Hour','DayOfWeek','Month']
 
         # identify holidays to use (if any)
         self.holidays = set([])
         if use_holidays:
-            self.name_list.append('holiday')
+            self.feature_names.append('Holiday')
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])    
 
@@ -198,7 +198,7 @@ class Preprocessor(object):
         for s in column_names:
             if s == outside_db_name:
                 d = np.column_stack( (d, data[s]) )
-                self.name_list.append(str(s))
+                self.feature_names.append(str(s))
                 if previous_data_points > 0:
                     # create input features using historical data 
                     # at the intervals defined by n_vals_in_past_day
@@ -212,7 +212,7 @@ class Preprocessor(object):
                         past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
-                        self.name_list.append(str(s)+'_'+ str(past_hours))
+                        self.feature_names.append(str(s)+'_'+ str(past_hours))
             elif not s == target_name:
                 # just add the column as an input feature 
                 # without historical data
@@ -355,8 +355,6 @@ class Preprocessor(object):
     def split_dataset(self, test_size):
         if self.X_standardizer is None:
             self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
-        else:
-            pass
         self.X_s = self.X_standardizer.transform(self.X)
         if self.y is not None:
             self.y_standardizer = preprocessing.StandardScaler().fit(self.y)
@@ -382,6 +380,7 @@ class Preprocessor(object):
                 self.dts_pre, self.dts_post = self.dts[:pre], self.dts[pre:]
         else:
             pass
+
     
     def join_recarrays(self,arrays):
         newtype = sum((a.dtype.descr for a in arrays), [])
@@ -393,10 +392,8 @@ class Preprocessor(object):
 
 class ModelAggregator(object):
 
-    def __init__(self, X, y, y_standardizer):
-        self.X = X
-        self.y = np.ravel(y)
-        self.y_standardizer = y_standardizer
+    def __init__(self, dataset):
+        self.dataset = dataset
         self.models = []
         self.best_model = None
         self.best_score = None
@@ -412,54 +409,50 @@ class ModelAggregator(object):
             raise Exception("Model trainer %s not implemented") % model
 
     def train_dummy(self, **kwargs):
-        pdb.set_trace()
         dummy_trainer = trainers.DummyTrainer(**kwargs)
-        dummy_trainer.train(self.X, 
-                            self.y,
+        dummy_trainer.train(self.dataset, 
                             randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
     def train_hour_weekday(self, **kwargs):
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer(**kwargs)
-        hour_weekday_trainer.train(self.X, 
-                                   self.y, 
+        hour_weekday_trainer.train(self.dataset, 
                                    randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
 
     def train_kneighbors(self, **kwargs):
         kneighbors_trainer = trainers.KNeighborsTrainer(**kwargs)
-        kneighbors_trainer.train(self.X, self.y)
+        kneighbors_trainer.train(self.dataset)
         self.models.append(kneighbors_trainer.model)
         return kneighbors_trainer.model
 
     def train_svr(self, **kwargs):
         svr_trainer = trainers.SVRTrainer(**kwargs)
-        svr_trainer.train(self.X, self.y)
+        svr_trainer.train(self.dataset)
         self.models.append(svr_trainer.model)
         return svr_trainer.model
 
     def train_gradient_boosting(self, **kwargs):
         gradient_boosting_trainer = trainers.GradientBoostingTrainer(**kwargs)
-        gradient_boosting_trainer.train(self.X, self.y)
+        gradient_boosting_trainer.train(self.dataset)
         self.models.append(gradient_boosting_trainer.model)
         return gradient_boosting_trainer.model
 
     def train_random_forest(self, **kwargs):
         random_forest_trainer = trainers.RandomForestTrainer(**kwargs)
-        random_forest_trainer.train(self.X, self.y)
+        random_forest_trainer.train(self.dataset)
         self.models.append(random_forest_trainer.model)
         return random_forest_trainer.model
 
     def train_extra_trees(self, **kwargs):
         extra_trees_trainer = trainers.ExtraTreesTrainer(**kwargs)
-        extra_trees_trainer.train(self.X, self.y)
+        extra_trees_trainer.train(self.dataset)
         self.models.append(extra_trees_trainer.model)
         return extra_trees_trainer.model 
 
     def train_all(self, **kwargs):
-        pdb.set_trace()
         self.train_dummy(**kwargs)
         self.train_hour_weekday(**kwargs)
         self.train_kneighbors(**kwargs)
@@ -481,11 +474,10 @@ class ModelAggregator(object):
         return self.best_model, self.best_score
 
     def score(self):
-        baseline = self.y_standardizer.inverse_transform(self.y)
-        prediction = self.y_standardizer.inverse_transform(\
-                                         self.best_model.predict(self.X))
-        self.error_metrics = comparer.Comparer(prediction=prediction,\
-                                               baseline=baseline)
+        prediction = self.dataset.y_standardizer.inverse_transform(\
+                                      self.best_model.predict(self.dataset.X))
+        self.error_metrics = comparer.Comparer(comparison=prediction,\
+                                               baseline=self.dataset.y)
         return self.error_metrics
 
     def __str__(self):
@@ -521,34 +513,41 @@ class MnV(object):
         else:
             self.locale = location.Location(self.address)
         self.use_tmy = use_tmy
-
         # pre-process the input data file
         self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
-        self.m = ModelAggregator(X=self.p.X_pre_s,
-                                 y=self.p.y_pre_s,
-                                 y_standardizer=self.p.y_standardizer) 
-        pdb.set_trace()
-        self.m.train_all(**kwargs)
+        # create datasets
+        self.A = dataset.Dataset(dataset_type='A',
+                                 X_s=self.p.X_pre_s,
+                                 X_standardizer=self.p.X_standardizer,
+                                 y_s=self.p.y_pre_s,
+                                 y_standardizer=self.p.y_standardizer,
+                                 dts=self.p.dts_pre,
+                                 feature_names=self.p.feature_names)
+        self.D = dataset.Dataset(dataset_type='D',
+                                 X_s=self.p.X_post_s,
+                                 X_standardizer=self.p.X_standardizer,
+                                 y_s=self.p.y_post_s,
+                                 y_standardizer=self.p.y_standardizer,
+                                 dts=self.p.dts_post,
+                                 feature_names=self.p.feature_names)
+        self.m_pre = ModelAggregator(dataset=self.A)
+        self.m_pre.train_all(**kwargs)
         #if plot:
         #    visualize.Visualize(baseline=self.m.error_metrics.b,
         #                        prediction=self.m.error_metrics.p,
-        #                        p_X=X_pre,name_list=self.p.name_list,
+        #                        p_X=X_pre,name_list=self.p.feature_names,
         #                        text=str(self.m),fname='Pre_training_report')
-        if save:
-            pickle.Pickler(open('pre_model.pkl', 'wb'), -1).dump(
-                                           self.m.best_model.best_estimator_)
 
         # single model (no weather lookup, no tmy normalization)
         # evaluate the output of the model against the post-retrofit data
-        measured_post_retrofit = self.p.y_standardizer.inverse_transform(\
-                                                         self.p.y_post_s)
-        predicted_post_retrofit = self.p.y_standardizer.inverse_transform(\
-                                self.m.best_model.predict(self.p.X_post_s))
-        X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-        X_pre = self.p.X_standardizer.inverse_transform(self.p.X_pre_s)
-        self.error_metrics = comparer.Comparer(\
-                                     prediction=predicted_post_retrofit,
-                                     baseline=measured_post_retrofit)
+        self.E = dataset.Dataset(dataset_type='E',
+                                 X_s=self.D.X_s,
+                                 X_standardizer=self.p.X_standardizer,
+                                 y=self.m_pre.best_model.predict(self.D.X_s),
+                                 y_standardizer=self.p.y_standardizer,
+                                 dts=self.D.dts,
+                                 feature_names=self.p.feature_names)
+        self.DvsE = comparer.Comparer(comparison=self.E, baseline=self.D)
         #if plot:
         #    visualize.Visualize(baseline=measured_post_retrofit,
         #                        prediction=predicted_post_retrofit,
@@ -556,44 +555,34 @@ class MnV(object):
         #                        text=str(self.error_metrics),
         #                        fname='Estimated_savings_report')
         if save:
+            pickle.Pickler(open('pre_model.pkl', 'wb'), -1).dump(
+                                       self.m_pre.best_model.best_estimator_)
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
-                                                           self.error_metrics)
+                                                           self.DvsE)
             str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
                            self.p.dts_post)
-            X_post = self.p.X_standardizer.inverse_transform(self.p.X_post_s)
-            if self.p.use_holidays: 
-                header = 'datetime,minute,hour,dayofweek,month,'+\
-                         'holiday,outsideDB,outsideDB8,'+\
-                         'outsideDB16,measured,predicted'
-            else:
-                header = 'datetime.minute,hour,dayofweek,month,'+\
-                         'outsideDB,outsideDB8,outsideDB16,'+\
-                         'measured,predicted'
+            header= 'Datetime,' + ','.join(self.D.feature_names) + \
+                                                ',Measured,Predicted'
             results = np.column_stack((np.array(str_date),
-                                         X_post,
-                                         measured_post_retrofit,
-                                         predicted_post_retrofit,))
+                                       self.D.X,
+                                       self.D.y,
+                                       self.E.y,))
             np.savetxt('Results.csv', 
                        results, 
                        delimiter=',', 
-                       header= header,
+                       header=header,
                        fmt='%s',
                        comments = '')
 
         if address is not None and self.use_tmy:
             # build a second model based on the post-retrofit data 
-            self.m_post = ModelAggregator(X=self.p.X_post_s,
-                                         y=self.p.y_post_s,
-                                         y_standardizer=self.p.y_standardizer) 
+            self.m_post = ModelAggregator(dataset=self.D)
             self.m_post.train_all(**kwargs)
             #if plot:
             #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
             #                        prediction=self.m_post.error_metrics.p,
             #                        p_X=X_post,name_list=self.p.name_list,
             #                        text=str(self.m_post),fname='Post_training_report')
-            if save:
-                pickle.Pickler(open('post_model.pkl', 'wb'), -1).dump(
-                                       self.m_post.best_model.best_estimator_)
             interval = str(self.p.interval_seconds/60)+'m'
             if self.p.outside_dp_name!=['']:
                 use_dewpoint = True
@@ -607,15 +596,23 @@ class MnV(object):
                                                                    'Ur')
             self.p_tmy = Preprocessor(input_file=tmy_csv,\
                                       X_standardizer=self.p.X_standardizer)
-            pre_model_tmy = self.p.y_standardizer.inverse_transform(\
-                            self.m.best_model.predict(self.p_tmy.X_s))
-            post_model_tmy = self.p.y_standardizer.inverse_transform(\
-                            self.m_post.best_model.predict(self.p_tmy.X_s))
-            self.error_metrics_tmy = comparer.Comparer(\
-                                              prediction=post_model_tmy,\
-                                              baseline=pre_model_tmy,
-                                              p_X=self.p_tmy.X,
-                                              names = self.p_tmy.name_list)
+            self.G = dataset.Dataset(
+                         dataset_type='G',
+                         X_s=self.p_tmy.X_s,
+                         X_standardizer=self.p_tmy.X_standardizer,
+                         y_s=self.m_pre.best_model.predict(self.p_tmy.X_s),
+                         y_standardizer=self.p_tmy.y_standardizer,
+                         dts=self.p_tmy.dts,
+                         feature_names=self.p_tmy.feature_names)
+            self.H = dataset.Dataset(
+                         dataset_type='H',
+                         X_s=self.p_tmy.X_s,
+                         X_standardizer=self.p_tmy.X_standardizer,
+                         y_s=self.m_post.best_model.predict(self.p_tmy.X_s),
+                         y_standardizer=self.p_tmy.y_standardizer,
+                         dts=self.p_tmy.dts,
+                         feature_names=self.p_tmy.feature_names)
+            self.GvsH = comparer.Comparer(comparison=self.H, baseline=self.G)
             #if plot:
             #    visualize.Visualize(baseline=pre_model_tmy,
             #                        prediction=post_model_tmy,
@@ -624,26 +621,19 @@ class MnV(object):
             #                        text=str(self.error_metrics_tmy),
             #                        fname='Normalized_savings_report')
             if save:
+                pickle.Pickler(open('post_model.pkl', 'wb'), -1).dump(
+                                       self.m_post.best_model.best_estimator_)
                 pickle.Pickler(open('tmy_error_metrics.pkl', 'wb'), -1).dump(
-                                       self.error_metrics_tmy)
+                                       self.GvsH)
                 str_date = map(lambda arr: arr.strftime(\
                                         self.p_tmy.timestamp_format),\
-                                        self.p_tmy.dts_post)
-                X_post = self.p_tmy.X_standardizer.inverse_transform(\
-                                                           self.p_tmy.X_post_s)
-                if self.p_tmy.use_holidays: 
-                    header = 'datetime,minute,hour,dayofweek,month,'+\
-                             'holiday,outsideDB,outsideDB8,'+\
-                             'outsideDB16,pre_model_prediction,'+\
-                             'post_model_prediction'
-                else:
-                    header = 'datetime.minute,hour,dayofweek,month,'+\
-                             'outsideDB,outsideDB8,outsideDB16,'+\
-                             'pre_model prediction,post_model_prediction'
+                                        self.p_tmy.dts)
+                header= 'Datetime,' + ','.join(self.D.feature_names) + \
+                        ',Pre-retrofit Prediction,Post-retrofit Prediction'
                 normalized_results = np.column_stack((np.array(str_date),
-                                                     X_post,
-                                                     pre_model_tmy,
-                                                     post_model_tmy,))
+                                                     self.G.X,
+                                                     self.G.y,
+                                                     self.H.y,))
                 np.savetxt('Normalized_results.csv', 
                            normalized_results, 
                            delimiter=',', 
@@ -654,16 +644,16 @@ class MnV(object):
     def __str__(self):
         if self.address is None or self.address=='':
             rv = "\n===== Pre-retrofit model training summary ====="
-            rv += str(self.m)
+            rv += str(self.m_pre)
             rv += "\n===== Results ====="
             rv += "\nThese results quantify the difference between the"+ \
         	  " measured post-retrofit data and the predicted" + \
         	  " consumption:"
-            rv += str(self.error_metrics)
+            rv += str(self.DvsE)
             return rv
         else:
             rv = "\n===== Pre-retrofit model training summary ====="
-            rv += str(self.m)
+            rv += str(self.m_pre)
             rv += "\n===== Post-retrofit model training summary ====="
             rv += str(self.m_post)
             rv += "\n===== Results ====="
@@ -671,16 +661,15 @@ class MnV(object):
         	"by both models over the entire date range in the input file."+\
         	  " One model was trained on the pre-retrofit data and the" + \
         	  " other was trained on the post-retrofit data:"
-            rv += str(self.error_metrics)
+            rv += str(self.DvsE)
             if self.use_tmy:
                 rv += "\nThe following results show the prediction base on "+\
                       "local TMY data"
-                rv += str(self.error_metrics_tmy)
+                rv += str(self.GvsH)
             return rv
  
 if __name__=='__main__': 
     import pdb
-    pdb.set_trace()
     f = open('data/ex2.csv', 'Ur')
     cps = [
            ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
@@ -688,5 +677,8 @@ if __name__=='__main__':
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
-    mnv = MnV(input_file=f, changepoints=cps,address='Wurster Hall, UC Berkeley', save=False)
+    mnv = MnV(input_file=f, 
+              changepoints=cps,
+              address=None,
+              save=True)
     print mnv
