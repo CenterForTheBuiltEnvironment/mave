@@ -23,6 +23,8 @@ from sklearn import preprocessing, cross_validation, metrics
 from holidays import holidays
 import trainers 
 import comparer
+import dataset
+import visualize
 import location
 
 class Preprocessor(object):
@@ -410,6 +412,7 @@ class ModelAggregator(object):
             raise Exception("Model trainer %s not implemented") % model
 
     def train_dummy(self, **kwargs):
+        pdb.set_trace()
         dummy_trainer = trainers.DummyTrainer(**kwargs)
         dummy_trainer.train(self.X, 
                             self.y,
@@ -456,10 +459,12 @@ class ModelAggregator(object):
         return extra_trees_trainer.model 
 
     def train_all(self, **kwargs):
+        pdb.set_trace()
         self.train_dummy(**kwargs)
         self.train_hour_weekday(**kwargs)
         self.train_kneighbors(**kwargs)
         self.train_random_forest(**kwargs)
+        self.train_extra_trees(**kwargs)
         # These take forever and maybe aren't worth it?
         #self.train_svr(**kwargs)
         #self.train_gradient_boosting(**kwargs)
@@ -522,12 +527,13 @@ class MnV(object):
         self.m = ModelAggregator(X=self.p.X_pre_s,
                                  y=self.p.y_pre_s,
                                  y_standardizer=self.p.y_standardizer) 
+        pdb.set_trace()
         self.m.train_all(**kwargs)
-        if plot:
-            comparer.Plot(baseline=self.m.error_metrics.b,
-                          prediction=self.m.error_metrics.p,
-                          p_X=X_pre,name_list=self.p.name_list,
-                          text=str(self.m),fname='Pre_training_report')
+        #if plot:
+        #    visualize.Visualize(baseline=self.m.error_metrics.b,
+        #                        prediction=self.m.error_metrics.p,
+        #                        p_X=X_pre,name_list=self.p.name_list,
+        #                        text=str(self.m),fname='Pre_training_report')
         if save:
             pickle.Pickler(open('pre_model.pkl', 'wb'), -1).dump(
                                            self.m.best_model.best_estimator_)
@@ -543,12 +549,12 @@ class MnV(object):
         self.error_metrics = comparer.Comparer(\
                                      prediction=predicted_post_retrofit,
                                      baseline=measured_post_retrofit)
-        if plot:
-            comparer.Plot(baseline=measured_post_retrofit,
-                          prediction=predicted_post_retrofit,
-                          p_X=X_post, name_list=self.p.name_list,
-                          text=str(self.error_metrics),
-                          fname='Estimated_savings_report')
+        #if plot:
+        #    visualize.Visualize(baseline=measured_post_retrofit,
+        #                        prediction=predicted_post_retrofit,
+        #                        p_X=X_post, name_list=self.p.name_list,
+        #                        text=str(self.error_metrics),
+        #                        fname='Estimated_savings_report')
         if save:
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                            self.error_metrics)
@@ -580,11 +586,11 @@ class MnV(object):
                                          y=self.p.y_post_s,
                                          y_standardizer=self.p.y_standardizer) 
             self.m_post.train_all(**kwargs)
-            if plot:
-                comparer.Plot(baseline=self.m_post.error_metrics.b,
-                              prediction=self.m_post.error_metrics.p,
-                              p_X=X_post,name_list=self.p.name_list,
-                              text=str(self.m_post),fname='Post_training_report')
+            #if plot:
+            #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
+            #                        prediction=self.m_post.error_metrics.p,
+            #                        p_X=X_post,name_list=self.p.name_list,
+            #                        text=str(self.m_post),fname='Post_training_report')
             if save:
                 pickle.Pickler(open('post_model.pkl', 'wb'), -1).dump(
                                        self.m_post.best_model.best_estimator_)
@@ -610,13 +616,13 @@ class MnV(object):
                                               baseline=pre_model_tmy,
                                               p_X=self.p_tmy.X,
                                               names = self.p_tmy.name_list)
-            if plot:
-                comparer.Plot(baseline=pre_model_tmy,
-                              prediction=post_model_tmy,
-                              p_X=self.p_tmy.X,
-                              name_list=self.p_tmy.name_list,
-                              text=str(self.error_metrics_tmy),
-                              fname='Normalized_savings_report')
+            #if plot:
+            #    visualize.Visualize(baseline=pre_model_tmy,
+            #                        prediction=post_model_tmy,
+            #                        p_X=self.p_tmy.X,
+            #                        name_list=self.p_tmy.name_list,
+            #                        text=str(self.error_metrics_tmy),
+            #                        fname='Normalized_savings_report')
             if save:
                 pickle.Pickler(open('tmy_error_metrics.pkl', 'wb'), -1).dump(
                                        self.error_metrics_tmy)
@@ -673,7 +679,9 @@ class MnV(object):
             return rv
  
 if __name__=='__main__': 
-    f = open('mave/data/ex2.csv', 'Ur')
+    import pdb
+    pdb.set_trace()
+    f = open('data/ex2.csv', 'Ur')
     cps = [
            ("2012/1/29 13:15", Preprocessor.PRE_DATA_TAG),
            ("2012/12/20 01:15", Preprocessor.IGNORE_TAG),
