@@ -67,7 +67,7 @@ class Dataset(object):
         # ensure a set of feature names is present and of correct length
         assert isinstance(feature_names,list), \
                "feature_names is not a list object: %s"%type(feature_names)
-        assert len(feature_names) == X.shape[1], \
+        assert len(feature_names) == self.X.shape[1], \
                "different num of feature_names than features"
         self.feature_names = feature_names
         
@@ -108,9 +108,9 @@ if __name__=='__main__':
    dts = [1,2,3,4,5,6]
    feature_names = ['Minute','Hour','DayOfWeek']
    test = Dataset(dataset_type='A',
-                  X=X,
+                  X_s=X,
                   X_standardizer=X_standardizer,
-                  y=y,
+                  y_s=y,
                   y_standardizer=y_standardizer,
                   dts=dts,
                   feature_names=feature_names)
