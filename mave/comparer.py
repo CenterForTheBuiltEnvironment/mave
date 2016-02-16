@@ -1,7 +1,8 @@
 """
 Quantifying the error between two arrays
-Passed values can be python lists or numpy arrays,
-but each must be the same length/shape
+Passed values can be python lists, numpy arrays,
+or mave dataset.Dataset objects but the comparison 
+and baseline data must be the same length/shape
 
 @author Paul Raftery <p.raftery@berkeley.edu>
 """
@@ -13,8 +14,16 @@ import matplotlib.pyplot as plt
 class Comparer(object):
     DIGITS = 3
     def __init__(self, comparison, baseline):
-        self.c = np.array(comparison).astype(np.float)
-        self.b = np.array(baseline).astype(np.float)
+        # extract unstandardized results ('y' field) 
+        # from Dataset objects if passed as args instead of arrays
+        try: 
+            self.c= np.array(comparison.y).astype(np.float)
+        except:
+            self.c = np.array(comparison).astype(np.float)
+        try:
+            self.b = np.array(baseline.y).astype(np.float)
+        except:    
+            self.b = np.array(baseline).astype(np.float)
         self.b_mean = np.mean(self.b)
         # error (overpredict is negative) 
         self.e = self.b-self.c
