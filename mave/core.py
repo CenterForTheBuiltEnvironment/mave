@@ -68,7 +68,6 @@ class Preprocessor(object):
         # process the headers
         self.headers, self.named_cols = self.process_headers()
         self.feature_names = ['Minute','Hour','DayOfWeek','Month']
-
         # identify holidays to use (if any)
         self.holidays = set([])
         if use_holidays:
@@ -543,7 +542,7 @@ class MnV(object):
         self.E = dataset.Dataset(dataset_type='E',
                                  X_s=self.D.X_s,
                                  X_standardizer=self.p.X_standardizer,
-                                 y=self.m_pre.best_model.predict(self.D.X_s),
+                                 y_s=self.m_pre.best_model.predict(self.D.X_s),
                                  y_standardizer=self.p.y_standardizer,
                                  dts=self.D.dts,
                                  feature_names=self.p.feature_names)
@@ -559,21 +558,11 @@ class MnV(object):
                                        self.m_pre.best_model.best_estimator_)
             pickle.Pickler(open('error_metrics.pkl', 'wb'), -1).dump(
                                                            self.DvsE)
-            str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
-                           self.p.dts_post)
-            header= 'Datetime,' + ','.join(self.D.feature_names) + \
-                                                ',Measured,Predicted'
-            results = np.column_stack((np.array(str_date),
-                                       self.D.X,
-                                       self.D.y,
-                                       self.E.y,))
-            np.savetxt('Results.csv', 
-                       results, 
-                       delimiter=',', 
-                       header=header,
-                       fmt='%s',
-                       comments = '')
+            self.A.write_to_csv()
+            self.D.write_to_csv()
+            self.E.write_to_csv()
 
+        pdb.set_trace()
         if address is not None and self.use_tmy:
             # build a second model based on the post-retrofit data 
             self.m_post = ModelAggregator(dataset=self.D)
@@ -625,21 +614,8 @@ class MnV(object):
                                        self.m_post.best_model.best_estimator_)
                 pickle.Pickler(open('tmy_error_metrics.pkl', 'wb'), -1).dump(
                                        self.GvsH)
-                str_date = map(lambda arr: arr.strftime(\
-                                        self.p_tmy.timestamp_format),\
-                                        self.p_tmy.dts)
-                header= 'Datetime,' + ','.join(self.D.feature_names) + \
-                        ',Pre-retrofit Prediction,Post-retrofit Prediction'
-                normalized_results = np.column_stack((np.array(str_date),
-                                                     self.G.X,
-                                                     self.G.y,
-                                                     self.H.y,))
-                np.savetxt('Normalized_results.csv', 
-                           normalized_results, 
-                           delimiter=',', 
-                           header= header,
-                           fmt='%s',
-                           comments = '')
+                self.G.write_to_csv()
+                self.H.write_to_csv()
 
     def __str__(self):
         if self.address is None or self.address=='':
@@ -677,6 +653,13 @@ if __name__=='__main__':
            ("2013/1/1 01:15", Preprocessor.PRE_DATA_TAG),
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
+    # one example
+    mnv = MnV(input_file=f, 
+              changepoints=cps,
+              address='Wurster Hall, UC Berkeley',
+              use_tmy=True,
+              save=False)
+    # another example
     mnv = MnV(input_file=f, 
               changepoints=cps,
               address=None,
