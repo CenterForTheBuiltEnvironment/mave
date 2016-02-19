@@ -50,14 +50,14 @@ class Dataset(object):
         self.X_s = X_s
         self.y = y
         self.y_s = y_s
-        if not isinstance(self.X_s,np.ndarray):
-            self.X_s = self.X_standardizer.inverse_transform(self.X)
-        if not isinstance(self.X,np.ndarray):
-            self.X = self.X_standardizer.transform(self.X_s)
-        if not isinstance(self.y_s,np.ndarray):
-            self.y_s = self.y_standardizer.inverse_transform(self.y)
-        if not isinstance(self.y,np.ndarray):
-            self.y = self.y_standardizer.transform(self.y_s)
+        if not isinstance(self.X_s, np.ndarray):
+            self.X_s = self.X_standardizer.transform(self.X)
+        if not isinstance(self.X, np.ndarray):
+            self.X = self.X_standardizer.inverse_transform(self.X_s)
+        if not isinstance(self.y_s, np.ndarray):
+            self.y_s = self.y_standardizer.transform(self.y)
+        if not isinstance(self.y, np.ndarray):
+            self.y = self.y_standardizer.inverse_transform(self.y_s)
         assert self.X.shape[0] == len(self.y), \
                "length of X (%s) doesn't match y (%s)"%(X.shape[0],len(self.y))
         # ensure datetimes are the correct length
@@ -71,17 +71,15 @@ class Dataset(object):
                "different num of feature_names than features"
         self.feature_names = feature_names
         
-    def write_to_csv(self, filename='Results.csv'):
-        str_date = map(lambda arr: arr.strftime(self.p.timestamp_format),
+    def write_to_csv(self, 
+                     filename='Results.csv', 
+                     timestamp_format='%Y-%m-%d%T%H%M'):
+        str_date = map(lambda arr: arr.strftime(timestamp_format),
                        self.dts)
-        header = self.feature_names.extend(['measured','predicted'])
-        header = ','.join(map(str, header))
-        output = np.column_stack((np.array(str_date),
-                                  X,
-                                  y,
-                                  predicted,))
+        header= 'Datetime,' + ','.join(self.feature_names) + ',Data'
+        data = np.column_stack((np.array(str_date), self.X, self.y,))
         np.savetxt(filename,
-                   output,
+                   data,
                    delimiter=',',
                    header=header,
                    fmt='%s',
@@ -101,11 +99,14 @@ class Dataset(object):
 if __name__=='__main__':
    import numpy as np
    import pdb
-   X = np.random.rand(6,3)
-   y = np.random.rand(6,1)
+   from datetime import datetime
+
+   X = np.random.rand(24,3)
+   y = np.random.rand(24,1)
    X_standardizer = preprocessing.StandardScaler().fit(X)
    y_standardizer = preprocessing.StandardScaler().fit(y)
-   dts = [1,2,3,4,5,6]
+   dts = np.arange('2014-01-01T00:00','2014-01-02T00:00',\
+                     dtype=('datetime64[h]')).astype(datetime)
    feature_names = ['Minute','Hour','DayOfWeek']
    test = Dataset(dataset_type='A',
                   X_s=X,
