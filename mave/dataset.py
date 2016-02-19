@@ -84,7 +84,7 @@ class Dataset(object):
         
     def write_to_csv(self, 
                      filename=None, 
-                     timestamp_format='%Y-%m-%d%T%H%M'):
+                     timestamp_format='%Y-%m-%dT%H%M'):
         str_date = map(lambda arr: arr.strftime(timestamp_format),
                        self.dts)
         if not filename: filename=str(self.DESC[self.dataset_type])+'.csv' 
@@ -124,4 +124,4 @@ if __name__=='__main__':
    print test.X_s
    print test.y
    print test.y_s
-   
+   test.write_to_csv() 
