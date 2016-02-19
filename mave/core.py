@@ -172,7 +172,7 @@ class Preprocessor(object):
         # remove outliers
         if y is not None:
             if remove_outliers == 'SingleValue':
-                keep_inds = self.is_single_value_outlier(y, med_diff_multiple=100)
+                keep_inds = self.is_single_value_outlier(y,med_diff_multiple=10)
             elif remove_outliers == 'MultipleValues':
                 keep_inds = self.is_outlier(y, threshold=10)
             else:
@@ -222,7 +222,7 @@ class Preprocessor(object):
             d = np.column_stack( (d, data[target_name]) )
         return d, split
 
-    def is_single_value_outlier(self, y, med_diff_multiple=100):
+    def is_single_value_outlier(self, y, med_diff_multiple=10):
         # id 2 highest and lowest values (ignoring nans)
         # id a single value as an outlier if the min or max is very far 
         # (> 100 times the median difference between values)
@@ -562,9 +562,9 @@ class MnV(object):
             self.D.write_to_csv()
             self.E.write_to_csv()
 
-        pdb.set_trace()
         if address is not None and self.use_tmy:
             # build a second model based on the post-retrofit data 
+            pdb.set_trace()
             self.m_post = ModelAggregator(dataset=self.D)
             self.m_post.train_all(**kwargs)
             #if plot:
