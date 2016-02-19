@@ -2,14 +2,14 @@
 This class is a wrapper for all of data required to train or evaluate a model
 
 the dataset_type field is to help standardize notation of different datasets:
-    A:'measured preretrofit data'
-    B:'preretrofit data predicted using preretrofit model'
-    C:'preretrofit data predicted using postretrofit model'
-    D:'measured postretofit data'
-    E:'postretrofit data predicted using preretrofit model'
-    F:'postretrofit data predicted using postretrofit model'
-    G:'tmy data predicted using preretrofit model'
-    H:'tmy data predicted using postretrofit model'
+       'A':'Measured preretrofit data',
+       'B':'Preretrofit prediction - preretrofit model',
+       'C':'Preretrofit prediction - postretrofit model',
+       'D':'Measured postretrofit data',
+       'E':'Postretrofit prediction - preretrofit model',
+       'F':'Postretrofit prediction - postretrofit model',
+       'G':'TMY prediction: preretrofit model',
+       'H':'TMY prediction: postretrofit model'}
 
 typical comparisons used by mave:
     Pre-retrofit model performance = A vs B
@@ -23,6 +23,15 @@ from sklearn import preprocessing
 import numpy as np
 
 class Dataset(object):
+    DESC ={'A':'Measured preretrofit data',
+           'B':'Preretrofit prediction - preretrofit model',
+           'C':'Preretrofit prediction - postretrofit model',
+           'D':'Measured postretrofit data',
+           'E':'Postretrofit prediction - preretrofit model',
+           'F':'Postretrofit prediction - postretrofit model',
+           'G':'TMY prediction - preretrofit model',
+           'H':'TMY prediction - postretrofit model'}
+
     def __init__(self, 
                  dataset_type=None,
                  X=None, 
@@ -40,9 +49,11 @@ class Dataset(object):
         self.dataset_type = dataset_type
         # ensure standardizers are present
         assert isinstance(X_standardizer, preprocessing.data.StandardScaler), \
-               "X_standardizer is not an instance of preprocessing.data.StandardScaler:%s"%type(X_standardizer)
+               "X_standardizer is not an instance " + \
+               "of preprocessing.data.StandardScaler:%s"%type(X_standardizer)
         assert isinstance(y_standardizer, preprocessing.data.StandardScaler), \
-               "y_standardizer is not an instance of preprocessing.data.StandardScaler:%s"%type(y_standardizer)
+               "y_standardizer is not an instance " + \
+               "of preprocessing.data.StandardScaler:%s"%type(y_standardizer)
         self.X_standardizer = X_standardizer
         self.y_standardizer = y_standardizer
         # ensure both representations of X and y are present and same length
@@ -72,10 +83,11 @@ class Dataset(object):
         self.feature_names = feature_names
         
     def write_to_csv(self, 
-                     filename='Results.csv', 
+                     filename=None, 
                      timestamp_format='%Y-%m-%d%T%H%M'):
         str_date = map(lambda arr: arr.strftime(timestamp_format),
                        self.dts)
+        if not filename: filename=str(self.DESC[self.dataset_type])+'.csv' 
         header= 'Datetime,' + ','.join(self.feature_names) + ',Data'
         data = np.column_stack((np.array(str_date), self.X, self.y,))
         np.savetxt(filename,
@@ -86,19 +98,11 @@ class Dataset(object):
                    comments='')
 
     def __str__(self):
-        desc ={'A':'measured preretrofit data',
-               'B':'preretrofit data predicted using preretrofit model',
-               'C':'preretrofit data predicted using postretrofit model',
-               'D':'measured postretofit data',
-               'E':'postretrofit data predicted using preretrofit model',
-               'F':'postretrofit data predicted using postretrofit model',
-               'G':'tmy data predicted using preretrofit model',
-               'H':'tmy data predicted using postretrofit model'}
-        return 'Dataset type: %s, %s'%(self.dataset_type,desc[self.dataset_type])
+        return 'Dataset type: %s, %s'\
+                %(self.dataset_type,self.DESC[self.dataset_type])
 
 if __name__=='__main__':
    import numpy as np
-   import pdb
    from datetime import datetime
 
    X = np.random.rand(24,3)
@@ -120,4 +124,4 @@ if __name__=='__main__':
    print test.X_s
    print test.y
    print test.y_s
-
+   
