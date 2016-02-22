@@ -9,6 +9,7 @@ data to a given uniform interval.
 
 import json
 import urllib2
+import requests
 import numpy as np
 from zipfile import ZipFile
 from StringIO import StringIO
@@ -206,6 +207,7 @@ class TMYData(object):
 
     def getTMY(self,lat,lon,year,interval):
         f = open('./mave/data/epwurl.csv','r')
+        # TODO: update epwurl.csv with urls to new website
         #f = StringIO(pkgutil.get_data('./mave', 'data/epwurl.csv'))
         csv = np.genfromtxt(f, delimiter=',', dtype=None)
         csv_lat = csv[1:,4].astype(float)
@@ -214,10 +216,14 @@ class TMYData(object):
         #downloading the zipfile from 'apps1.eere.energy.gov' website takes
         #two minutes. methods tried: urllib2.urlopen; urllib.urlretrieve;
         #request.get
-        un_zip_file = ZipFile(StringIO(urllib2.urlopen(csv[min_idx,6]).read()))
-        tmy_file = [i for i in un_zip_file.namelist() if '.epw' in i][0]
-        outpath = os.getcwd()+'/mave/data/'
-        un_zip_file.extract(tmy_file,outpath)
+        url = csv[min_idx,6]
+        epw = requests.get(url).text        
+        f1 =  open('tmy.csv','r+')
+        f1.write(epw)
+        #un_zip_file = ZipFile(StringIO(urllib2.urlopen(csv[min_idx,6]).read()))
+        tmy_file = 'tmy.csv' 
+        #outpath = os.getcwd()+'/mave/data/'
+        #un_zip_file.extract(tmy_file,outpath)
         names = ["year","month","day","hour","minute","datasource",\
                  "DryBulb","DewPoint","RelHum","Atmos_Pressure",\
                  "ExtHorzRad","ExtDirRad","HorzIRSky","GloHorzRad",\
@@ -231,8 +237,8 @@ class TMYData(object):
            cols = ','.join(names[:5])+','+names[6]
         else:
            cols = ','.join(names[:5])+','+','.join(names[6:8])
-        tmy = np.genfromtxt(un_zip_file.open(tmy_file), delimiter=',',\
-                    dtype=None, skip_header=8, names=names, usecols=cols)
+        tmy = np.genfromtxt(f1, delimiter=',', dtype=None, skip_header=8, names=names, usecols=cols)
+        f1.close()
         if year is None: 
             np.place(tmy["year"],tmy["year"]!=datetime.datetime.now().year,\
                      datetime.datetime.now().year)
@@ -277,8 +283,8 @@ if __name__ == "__main__":
     end = datetime.datetime(2015,2,1,0,0)
     interp_interval = '15m'
     use_dp = False
-    hist_weather = Weather(start,end,None,test.geocode,\
-                           interp_interval,False)
+    #hist_weather = Weather(start,end,None,test.geocode,\
+    #                       interp_interval,False)
     test2 = TMYData(test.lat,test.lon,None,interp_interval,use_dp)
     print 'TMY file:',test2.tmy_file
     print 'TMY Data:', test2.cleaned_tmy
