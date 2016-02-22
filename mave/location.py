@@ -207,23 +207,15 @@ class TMYData(object):
 
     def getTMY(self,lat,lon,year,interval):
         f = open('./mave/data/epwurl.csv','r')
-        # TODO: update epwurl.csv with urls to new website
         #f = StringIO(pkgutil.get_data('./mave', 'data/epwurl.csv'))
         csv = np.genfromtxt(f, delimiter=',', dtype=None)
         csv_lat = csv[1:,4].astype(float)
         csv_lon = csv[1:,5].astype(float)
         min_idx = np.argmin(np.sqrt([(csv_lat-lat)**2+(csv_lon-lon)**2]))+1
-        #downloading the zipfile from 'apps1.eere.energy.gov' website takes
-        #two minutes. methods tried: urllib2.urlopen; urllib.urlretrieve;
-        #request.get
         url = csv[min_idx,6]
-        epw = requests.get(url).text        
-        f1 =  open('tmy.csv','r+')
-        f1.write(epw)
-        #un_zip_file = ZipFile(StringIO(urllib2.urlopen(csv[min_idx,6]).read()))
-        tmy_file = 'tmy.csv' 
-        #outpath = os.getcwd()+'/mave/data/'
-        #un_zip_file.extract(tmy_file,outpath)
+        z = ZipFile(StringIO(requests.get(url).content))
+        tmy_file = [i for i in z.namelist() if '.epw' in i][0]
+        z.extract(tmy_file,'./mave/data/')
         names = ["year","month","day","hour","minute","datasource",\
                  "DryBulb","DewPoint","RelHum","Atmos_Pressure",\
                  "ExtHorzRad","ExtDirRad","HorzIRSky","GloHorzRad",\
@@ -237,8 +229,8 @@ class TMYData(object):
            cols = ','.join(names[:5])+','+names[6]
         else:
            cols = ','.join(names[:5])+','+','.join(names[6:8])
-        tmy = np.genfromtxt(f1, delimiter=',', dtype=None, skip_header=8, names=names, usecols=cols)
-        f1.close()
+        tmy = np.genfromtxt(z.open(tmy_file), delimiter=',',\
+                   dtype=None, skip_header=8, names=names, usecols=cols)
         if year is None: 
             np.place(tmy["year"],tmy["year"]!=datetime.datetime.now().year,\
                      datetime.datetime.now().year)
@@ -255,7 +247,6 @@ class TMYData(object):
                                dtype='datetime64[%s]'%interval)\
                                .astype(datetime.datetime)
         target_dts = np.append(target_dts,dt[-1])
-        #target_dts = map(lambda x: x.isoformat(),target_dts)
         target_unix = map(lambda x: time.mktime(x.timetuple()),target_dts)
         interp_db = np.interp(target_unix,unix_dt,tmy['DryBulb'])
         if self.use_dp is True:
@@ -274,9 +265,10 @@ class TMYData(object):
         return tmy_file, cleaned_tmy
 
 if __name__ == "__main__":
-    address = 'wurster hall, uc berkeley'
+    address = 'caffe strada, berkeley'
     test = Location(address)
-    print 'address:',test.real_addrs
+    print 'address (from user):',address
+    print 'address (actual):',test.real_addrs
     print 'lat:',test.lat,' lon:',test.lon
     print 'nearest_airport:',test.geocode
     start = datetime.datetime(2015,1,1,0,0)
