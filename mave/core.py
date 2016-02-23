@@ -67,7 +67,9 @@ class Preprocessor(object):
         self.outside_dp_name = outside_dp_name
         # process the headers
         self.headers, self.named_cols = self.process_headers()
-        self.feature_names = ['Minute','Hour','DayOfWeek','Month']
+        self.feature_names = ['Minute','Hour','DayOfWeek']
+        if use_month:
+            self.feature_names.append('Month')
         # identify holidays to use (if any)
         self.holidays = set([])
         if use_holidays:
@@ -310,8 +312,10 @@ class Preprocessor(object):
 
     def process_datetime(self, dt):
         # takes a datetime and returns a tuple of:
-        # minute, hour, weekday, month, and (holiday)
-        rv = float(dt.minute), float(dt.hour), float(dt.weekday()), float(dt.month)
+        # minute, hour, weekday, (month), and (holiday)
+        rv = float(dt.minute), float(dt.hour), float(dt.weekday())
+        if self.use_month: 
+            rv += float(dt.month),
         if self.holidays:
             if dt.date() in self.holidays:
                 hol = 3.0 # this day is a holiday
@@ -630,8 +634,8 @@ class MnV(object):
             rv += str(self.m_post)
             rv += "\n===== Results normalized to TMY data ====="
             rv += "\nThese results compare the energy consumption predicted "+\
-         	        "by both the pre and post-retrofit models using a Typical " +\
-                  "Meteorological Year data near: %s"%(self.locale.real_addrs
+         	        "by both the pre and post-retrofit models using a Typical "+\
+                  "Meteorological Year data near: %s"%(self.locale.real_addrs)
             rv += str(self.GvsH)
         return rv
  
