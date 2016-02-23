@@ -15,14 +15,12 @@ import pdb
 import io
 import os.path
 import sys
-sys.path.insert(0, './mave')
-sys.path.insert(0, '../mave')
-from core import Preprocessor, ModelAggregator, MnV
+from mave.core import Preprocessor, ModelAggregator, MnV
 from datetime import datetime
 import argparse
 import ConfigParser
 import logging
-import pkgutil
+import pkg_resources
 import pprint
 
 def mave(input_file=None,
@@ -42,7 +40,8 @@ def mave(input_file=None,
     else:
         # no config file passed, use defaults:
         print '\nNo config file entered - Using default settings' 
-        default = pkgutil.get_data('mave', 'config/default.cfg')
+        resource_path = os.path.join('config', 'default.cfg')
+        default = pkg_resources.resource_string('mave', resource_path)
         config.readfp(io.BytesIO(default))
     for name in config.options('Booleans'):
         kws[name] = config.getboolean('Booleans', name)
