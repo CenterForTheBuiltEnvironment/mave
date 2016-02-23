@@ -183,7 +183,7 @@ class Preprocessor(object):
             if self.verbose: 
                 outliers = y[~keep_inds]
                 outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
-                print '\nRemoved the following %s outlier values:\n%s'%\
+                print '\nRemoved the following %s outlier value(s):\n%s'%\
                       (len(outliers),zip(outlier_ts,outliers))
             X = X[keep_inds]
             y = y[keep_inds]
@@ -474,7 +474,7 @@ class ModelAggregator(object):
 
     def score(self):
         prediction = self.dataset.y_standardizer.inverse_transform(\
-                                      self.best_model.predict(self.dataset.X))
+                                      self.best_model.predict(self.dataset.X_s))
         self.error_metrics = comparer.Comparer(comparison=prediction,\
                                                baseline=self.dataset.y)
         return self.error_metrics
