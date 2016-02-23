@@ -45,7 +45,6 @@ class Comparer(object):
         else:
             self.some_zeros = False
         # normalized percentage error 
-        pdb.set_trace()
         self.npe = 100*self.e/self.b
         self.npe_min = round(np.min(self.npe),self.DIGITS)
         self.npe_max= round(np.max(self.npe),self.DIGITS)
