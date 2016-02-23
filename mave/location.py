@@ -14,6 +14,7 @@ import numpy as np
 from zipfile import ZipFile
 from StringIO import StringIO
 import os
+import pkg_resources
 import pkgutil
 import datetime, time 
 import dateutil.parser as dparser 
@@ -206,16 +207,18 @@ class TMYData(object):
         self.tmy_file, self.cleaned_tmy = self.getTMY(lat, lon, year, interval)
 
     def getTMY(self,lat,lon,year,interval):
-        f = open('./mave/data/epwurl.csv','r')
+        resource_package = __name__
+        resource_path = os.path.join('data', 'epwurl.csv')
+        f = pkg_resources.resource_string(resource_package, resource_path) 
         #f = StringIO(pkgutil.get_data('./mave', 'data/epwurl.csv'))
-        csv = np.genfromtxt(f, delimiter=',', dtype=None)
+        csv = np.genfromtxt(StringIO(f), delimiter=',', dtype=None)
         csv_lat = csv[1:,4].astype(float)
         csv_lon = csv[1:,5].astype(float)
         min_idx = np.argmin(np.sqrt([(csv_lat-lat)**2+(csv_lon-lon)**2]))+1
         url = csv[min_idx,6]
         z = ZipFile(StringIO(requests.get(url).content))
         tmy_file = [i for i in z.namelist() if '.epw' in i][0]
-        z.extract(tmy_file,'./mave/data/')
+        z.extract(tmy_file,'./')
         names = ["year","month","day","hour","minute","datasource",\
                  "DryBulb","DewPoint","RelHum","Atmos_Pressure",\
                  "ExtHorzRad","ExtDirRad","HorzIRSky","GloHorzRad",\
@@ -260,7 +263,7 @@ class TMYData(object):
             cleaned_tmy = np.vstack((column_names,cleaned_tmy))
         headers = 'This CSV file is a cleaned version of the TMY data file.',\
                  'The data were generated from file'+str(tmy_file)
-        np.savetxt('./mave/data/clean_%s.csv'%(tmy_file),\
+        np.savetxt('./clean_%s.csv'%(tmy_file),\
                    cleaned_tmy,delimiter=',',fmt='%s', comments='')
         return tmy_file, cleaned_tmy
 
