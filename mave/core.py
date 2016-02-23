@@ -217,6 +217,7 @@ class Preprocessor(object):
             elif not s == target_name:
                 # just add the column as an input feature 
                 # without historical data
+                self.feature_names.append(str(s))
                 d = np.column_stack( (d, data[s]) )
         # add the target data
         split = d.shape[1]
@@ -484,7 +485,7 @@ class ModelAggregator(object):
         return self.error_metrics
 
     def __str__(self):
-        rv = "\n=== Selected model ==="
+        rv = "\n\n=== Selected model ==="
         rv += "\nBest cross validation score on training data: %s"%\
                                                    self.best_model.best_score_
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
@@ -566,9 +567,8 @@ class MnV(object):
             self.D.write_to_csv()
             self.E.write_to_csv()
 
-        if address is not None and self.use_tmy:
+        if self.address is not None and self.use_tmy:
             # build a second model based on the post-retrofit data 
-            pdb.set_trace()
             self.m_post = ModelAggregator(dataset=self.D)
             self.m_post.train_all(**kwargs)
             #if plot:
@@ -576,33 +576,31 @@ class MnV(object):
             #                        prediction=self.m_post.error_metrics.p,
             #                        p_X=X_post,name_list=self.p.name_list,
             #                        text=str(self.m_post),fname='Post_training_report')
-            interval = str(self.p.interval_seconds/60)+'m'
-            if self.p.outside_dp_name!=['']:
-                use_dewpoint = True
-            else:
-                use_dewpoint = False
-            tmy_data = location.TMYData(lat=self.locale.lat,
-                                        lon=self.locale.lon, 
-                                        year=None, interval=interval,
-                                        use_dp=use_dewpoint)
-            tmy_csv = open('./mave/data/clean_%s.csv'%tmy_data.tmy_file,
-                                                                   'Ur')
-            self.p_tmy = Preprocessor(input_file=tmy_csv,\
-                                      X_standardizer=self.p.X_standardizer)
+            tmy_data = location.TMYData(
+                         lat=self.locale.lat,
+                         lon=self.locale.lon, 
+                         year=None, 
+                         interval=str(self.p.interval_seconds/60)+'m',
+                         use_dp= self.p.outside_dp_name in self.A.feature_names
+                         )
+            tmy_csv = open('./clean_%s.csv'%tmy_data.tmy_file, 'Ur')
+            self.p_tmy = Preprocessor(input_file=tmy_csv,
+                                      X_standardizer=self.p.X_standardizer,
+                                      **kwargs)
             self.G = dataset.Dataset(
                          dataset_type='G',
                          X_s=self.p_tmy.X_s,
-                         X_standardizer=self.p_tmy.X_standardizer,
+                         X_standardizer=self.p.X_standardizer,
                          y_s=self.m_pre.best_model.predict(self.p_tmy.X_s),
-                         y_standardizer=self.p_tmy.y_standardizer,
+                         y_standardizer=self.p.y_standardizer,
                          dts=self.p_tmy.dts,
                          feature_names=self.p_tmy.feature_names)
             self.H = dataset.Dataset(
                          dataset_type='H',
                          X_s=self.p_tmy.X_s,
-                         X_standardizer=self.p_tmy.X_standardizer,
+                         X_standardizer=self.p.X_standardizer,
                          y_s=self.m_post.best_model.predict(self.p_tmy.X_s),
-                         y_standardizer=self.p_tmy.y_standardizer,
+                         y_standardizer=self.p.y_standardizer,
                          dts=self.p_tmy.dts,
                          feature_names=self.p_tmy.feature_names)
             self.GvsH = comparer.Comparer(comparison=self.H, baseline=self.G)
@@ -622,19 +620,19 @@ class MnV(object):
                 self.H.write_to_csv()
 
     def __str__(self):
-        rv = "\n===== Pre-retrofit model training summary ====="
+        rv = "\n\n===== Pre-retrofit model training summary ====="
         rv += str(self.m_pre)
-        rv += "\n===== Results ====="
+        rv += "\n\n===== Results ====="
         rv += "\nThese results quantify the difference between the"+ \
               " measured post-retrofit data and the predicted" + \
               " consumption:"
         rv += str(self.DvsE)
         if self.address is not None and self.use_tmy:
-            rv += "\n===== Post-retrofit model training summary ====="
+            rv += "\n\n===== Post-retrofit model training summary ====="
             rv += str(self.m_post)
-            rv += "\n===== Results normalized to TMY data ====="
+            rv += "\n\n===== Results normalized to TMY data ====="
             rv += "\nThese results compare the energy consumption predicted "+\
-         	        "by both the pre and post-retrofit models using a Typical "+\
+         	        "by both the pre and post-retrofit models using Typical "+\
                   "Meteorological Year data near: %s"%(self.locale.real_addrs)
             rv += str(self.GvsH)
         return rv
