@@ -28,15 +28,15 @@ class Comparer(object):
         # error (overpredict is negative) 
         self.e = self.b-self.c
         # total biased error
-        self.tbe = round(sum(self.e),self.DIGITS)
+        self.tbe = round(np.sum(self.e),self.DIGITS)
         # normalized mean bias error
-        self.nmbe = round(100*sum(self.e)/self.b_mean/len(self.b),self.DIGITS)
+        self.nmbe = round(100*np.sum(self.e)/self.b_mean/len(self.b),self.DIGITS)
         # root mean squared error
-        self.rmse = math.sqrt(sum((self.e)**2)/len(self.b))
+        self.rmse = math.sqrt(np.sum((self.e)**2)/len(self.b))
         # coefficient of root mean squared error
         self.cvrmse = round(100*(self.rmse)/self.b_mean,self.DIGITS)
         # r2
-        self.r2 = round(1 - (sum(self.e**2)/sum((self.b - self.b_mean)**2)),
+        self.r2 = round(1 - (np.sum(self.e**2)/np.sum((self.b - self.b_mean)**2)),
                                                                self.DIGITS)
         # check for zeroes before division
         if np.count_nonzero(self.b) < len(self.b):
@@ -45,6 +45,7 @@ class Comparer(object):
         else:
             self.some_zeros = False
         # normalized percentage error 
+        pdb.set_trace()
         self.npe = 100*self.e/self.b
         self.npe_min = round(np.min(self.npe),self.DIGITS)
         self.npe_max= round(np.max(self.npe),self.DIGITS)
@@ -85,8 +86,8 @@ class Comparer(object):
 if __name__=='__main__': 
     import numpy as np
 
-    b = np.ones(8759,)*(np.random.random_sample(8759,)+0.5)
-    c = np.random.random_sample(8759,)+0.5
+    b = np.ones(8759,)*(np.random.random_sample(8759,)+10.0)
+    c = np.random.random_sample(8759,)+10.5
     comparer = Comparer(comparison=c, baseline=b)
     print comparer
 
