@@ -454,9 +454,9 @@ class ModelAggregator(object):
     def train_all(self, **kwargs):
         self.train_dummy(**kwargs)
         self.train_hour_weekday(**kwargs)
-        self.train_kneighbors(**kwargs)
+        #self.train_kneighbors(**kwargs)
         self.train_random_forest(**kwargs)
-        self.train_extra_trees(**kwargs)
+        #self.train_extra_trees(**kwargs)
         # These take forever and maybe aren't worth it?
         #self.train_svr(**kwargs)
         #self.train_gradient_boosting(**kwargs)
@@ -487,7 +487,7 @@ class ModelAggregator(object):
         try:
             imps = self.best_model.best_estimator_.feature_importances_
             rv += "\nThe relative importances of input features are:\n%s"%imps
-            #TODO rv += "\nWhich corresponds to:\n%s"%self.input_feature_names
+            rv += "\nWhich corresponds to:\n%s"%self.dataset.feature_names
         except Exception, e:
             rv += ""
         rv += "\n\n=== Fit to the training data ==="
@@ -618,31 +618,22 @@ class MnV(object):
                 self.H.write_to_csv()
 
     def __str__(self):
-        if self.address is None or self.address=='':
-            rv = "\n===== Pre-retrofit model training summary ====="
-            rv += str(self.m_pre)
-            rv += "\n===== Results ====="
-            rv += "\nThese results quantify the difference between the"+ \
-        	  " measured post-retrofit data and the predicted" + \
-        	  " consumption:"
-            rv += str(self.DvsE)
-            return rv
-        else:
-            rv = "\n===== Pre-retrofit model training summary ====="
-            rv += str(self.m_pre)
+        rv = "\n===== Pre-retrofit model training summary ====="
+        rv += str(self.m_pre)
+        rv += "\n===== Results ====="
+        rv += "\nThese results quantify the difference between the"+ \
+              " measured post-retrofit data and the predicted" + \
+              " consumption:"
+        rv += str(self.DvsE)
+        if self.address is not None and self.use_tmy:
             rv += "\n===== Post-retrofit model training summary ====="
             rv += str(self.m_post)
-            rv += "\n===== Results ====="
+            rv += "\n===== Results normalized to TMY data ====="
             rv += "\nThese results compare the energy consumption predicted "+\
-        	"by both models over the entire date range in the input file."+\
-        	  " One model was trained on the pre-retrofit data and the" + \
-        	  " other was trained on the post-retrofit data:"
-            rv += str(self.DvsE)
-            if self.use_tmy:
-                rv += "\nThe following results show the prediction base on "+\
-                      "local TMY data"
-                rv += str(self.GvsH)
-            return rv
+         	        "by both the pre and post-retrofit models using a Typical " +\
+                  "Meteorological Year data near: %s"%(self.locale.real_addrs
+            rv += str(self.GvsH)
+        return rv
  
 if __name__=='__main__': 
     import pdb
@@ -654,12 +645,6 @@ if __name__=='__main__':
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
     # one example
-    mnv = MnV(input_file=f, 
-              changepoints=cps,
-              address='Wurster Hall, UC Berkeley',
-              use_tmy=True,
-              save=False)
-    # another example
     mnv = MnV(input_file=f, 
               changepoints=cps,
               address=None,
