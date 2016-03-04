@@ -1,8 +1,8 @@
 """
 Building Energy Prediction
 
-This software reads an input file (a required argument) containing 
-building energy data in a format similar to example file. 
+This software reads an input file (a required argument) containing
+building energy data in a format similar to example file.
 It then trains a model and estimates the error associated
 with predictions using the model.
 
@@ -21,7 +21,7 @@ from math import sqrt
 from datetime import datetime, timedelta
 from sklearn import preprocessing, cross_validation, metrics
 from holidays import holidays
-import trainers 
+import trainers
 import comparer
 import dataset
 import visualize
@@ -33,8 +33,8 @@ class Preprocessor(object):
     PRE_DATA_TAG = 0
     POST_DATA_TAG = 1
 
-    def __init__(self, 
-                 input_file, 
+    def __init__(self,
+                 input_file,
                  verbose=False,
                  use_holidays=True,
                  use_month=False,
@@ -55,7 +55,7 @@ class Preprocessor(object):
                  X_standardizer = None,
                  previous_data_points = 2,
                  **kwargs):
-        self.timestamp_format = timestamp_format    
+        self.timestamp_format = timestamp_format
         self.datetime_column_name = datetime_column_name
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
@@ -75,15 +75,15 @@ class Preprocessor(object):
         if use_holidays:
             self.feature_names.append('Holiday')
             for key in self.holiday_keys:
-                self.holidays = self.holidays.union(holidays[key])    
+                self.holidays = self.holidays.union(holidays[key])
 
         # read in the input data
-        data = np.genfromtxt(self.input_file, 
+        data = np.genfromtxt(self.input_file,
                              delimiter=',',
-                             dtype=None, 
-                             skip_header=len(self.headers)-1, 
+                             dtype=None,
+                             skip_header=len(self.headers)-1,
                              usecols=self.named_cols,
-                             names=True, 
+                             names=True,
                              missing_values='NA')
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
@@ -92,12 +92,12 @@ class Preprocessor(object):
         data = data[ start_index : end_index ]
         # parse datetimes
         dcn = self.datetime_column_name
-        try: 
+        try:
             dts = map(lambda d: datetime.strptime(d,
                                                   self.timestamp_format),
                                                    data[dcn])
         except ValueError:
-            dts = map(lambda d: dateutil.parser.parse(d, 
+            dts = map(lambda d: dateutil.parser.parse(d,
                                                       dayfirst=dayfirst,
                                                       yearfirst=yearfirst),
                                                        data[dcn])
@@ -141,28 +141,28 @@ class Preprocessor(object):
 
     def process_headers(self):
         # reads up to the first 100 lines of self.input_file and returns
-        # the headers and the column names 
+        # the headers and the column names
         reader = csv.reader(self.input_file, delimiter=',')
         headers = []
         for _ in range(100):
             row = reader.next()
             headers.append(row)
-            if len(row)>0: 
-                if self.datetime_column_name in row: 
+            if len(row)>0:
+                if self.datetime_column_name in row:
                     named_cols = tuple(np.where(np.array(row) !='')[0])
                     break
-        self.input_file.seek(0) # rewind the file 
-        return headers, named_cols 
+        self.input_file.seek(0) # rewind the file
+        return headers, named_cols
 
     def clean_data(self,
-                   data, 
-                   datetimes, 
-                   target_col_ind, 
+                   data,
+                   datetimes,
+                   target_col_ind,
                    remove_outliers='SingleValue'):
         # remove any row with missing data, identified by nan
         keep_inds = ~np.isnan(data).any(axis=1)
         num_to_del = len(keep_inds[~keep_inds])
-        if num_to_del > 0: 
+        if num_to_del > 0:
             datetimes = datetimes[keep_inds]
             data = data[keep_inds]
         # split the data into input and target arrays
@@ -182,7 +182,7 @@ class Preprocessor(object):
                     keep_inds = np.ones(len(y),dtype=bool)
                 else:
                     keep_inds = 0
-            if self.verbose: 
+            if self.verbose:
                 outliers = y[~keep_inds]
                 outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
                 print '\nRemoved the following %s outlier value(s):\n%s'%\
@@ -201,13 +201,13 @@ class Preprocessor(object):
                 d = np.column_stack( (d, data[s]) )
                 self.feature_names.append(str(s))
                 if previous_data_points > 0:
-                    # create input features using historical data 
+                    # create input features using historical data
                     # at the intervals defined by n_vals_in_past_day
                     for v in range(1, previous_data_points + 1):
                         past_hours = v * 24 / (previous_data_points + 1)
                         n_vals = past_hours * self.vals_per_hr
                         past_data = np.roll(data[s], n_vals)
-                        # for the first day in the file 
+                        # for the first day in the file
                         # there will be no historical data
                         # use the data from the next day as a rough estimate
                         past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
@@ -215,7 +215,7 @@ class Preprocessor(object):
                         d = np.column_stack( (d, past_data) )
                         self.feature_names.append(str(s)+'_'+ str(past_hours))
             elif not s == target_name:
-                # just add the column as an input feature 
+                # just add the column as an input feature
                 # without historical data
                 self.feature_names.append(str(s))
                 d = np.column_stack( (d, data[s]) )
@@ -227,10 +227,10 @@ class Preprocessor(object):
 
     def is_single_value_outlier(self, y, med_diff_multiple=10):
         # id 2 highest and lowest values (ignoring nans)
-        # id a single value as an outlier if the min or max is very far 
+        # id a single value as an outlier if the min or max is very far
         # (> 100 times the median difference between values)
         # from the next nearest unique value
-        keep_inds = np.ones(len(y), dtype=bool) 
+        keep_inds = np.ones(len(y), dtype=bool)
         mx = np.amax(y)
         mn = np.amin(y)
         median_diff = np.median(abs(np.diff(y)))
@@ -272,7 +272,7 @@ class Preprocessor(object):
         vectorized_round_datetime = np.vectorize(self.round_datetime)
         dts = vectorized_round_datetime(dts, median_interval_minutes)
         # remove duplicates and sorts datetimes
-        dts, inds = np.unique(dts, return_index = True) 
+        dts, inds = np.unique(dts, return_index = True)
         data = data[inds]
         # updates intervals after datetime rounding and duplicate removal
         intervals = [int((dts[i]-dts[i-1]).seconds) for i in range(1, len(dts))]
@@ -287,15 +287,15 @@ class Preprocessor(object):
             gap_end = dts[i + NN + 1]
             N = gap / median_interval - 1 # number of entries to add
             for j in range(1, N+1):
-                new_dt = gap_start + j*timedelta(seconds=median_interval) 
-                new_row = np.array([(new_dt,) + (np.nan,) * (row_length - 1)], 
+                new_dt = gap_start + j*timedelta(seconds=median_interval)
+                new_row = np.array([(new_dt,) + (np.nan,) * (row_length - 1)],
                                                          dtype=data.dtype)
-                #TODO: Logs 
+                #TODO: Logs
                 #print ("-- Missing datetime interval between \
                 #         %s and %s" % (gap_start, gap_end))
                 data = np.append(data, new_row)
-                dts = np.append(dts, new_dt) 
-                dts_ind = np.argsort(dts) 
+                dts = np.append(dts, new_dt)
+                dts_ind = np.argsort(dts)
                 data = data[dts_ind]
             dts = dts[dts_ind] # sorts datetimes
             NN += N
@@ -304,7 +304,7 @@ class Preprocessor(object):
     def round_datetime(self, dt, interval):
         # rounds a datetime to a given minute interval
         discard = timedelta(minutes=dt.minute % interval,
-                            seconds=dt.second, 
+                            seconds=dt.second,
                             microseconds = dt.microsecond)
         dt -= discard
         if discard >= timedelta(minutes=interval/2):
@@ -315,7 +315,7 @@ class Preprocessor(object):
         # takes a datetime and returns a tuple of:
         # minute, hour, weekday, (month), and (holiday)
         rv = float(dt.minute), float(dt.hour), float(dt.weekday())
-        if self.use_month: 
+        if self.use_month:
             rv += float(dt.month),
         if self.holidays:
             if dt.date() in self.holidays:
@@ -329,8 +329,8 @@ class Preprocessor(object):
             rv += hol,
         return rv
 
-    def changepoint_feature(self, 
-                            changepoints = None, 
+    def changepoint_feature(self,
+                            changepoints = None,
                             dayfirst = False,
                             yearfirst = False,
                             **kwargs
@@ -342,15 +342,15 @@ class Preprocessor(object):
                 try:
                     cp_dt = datetime.strptime(timestamp, self.timestamp_format)
                 except ValueError:
-                    cp_dt = dateutil.parser.parse(timestamp, 
+                    cp_dt = dateutil.parser.parse(timestamp,
                                                   dayfirst=dayfirst,
                                                   yearfirst=yearfirst)
                 cps.append((cp_dt, tag))
             # sort by ascending datetime
-            cps.sort(key=lambda tup: tup[0]) 
+            cps.sort(key=lambda tup: tup[0])
             feat = np.zeros(len(self.dts))
             for (cp_dt, tag) in cps:
-                ind = np.where(self.dts >= cp_dt)[0][0] 
+                ind = np.where(self.dts >= cp_dt)[0][0]
                 feat[ind:] = tag
         else:
             feat = None
@@ -366,7 +366,7 @@ class Preprocessor(object):
             if self.cps is not None:
                 pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
                 post_inds = np.where(self.cps == self.POST_DATA_TAG)
-               
+
                 self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
                 self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
                 self.dts_pre, self.dts_post = \
@@ -385,7 +385,7 @@ class Preprocessor(object):
         else:
             pass
 
-    
+
     def join_recarrays(self,arrays):
         newtype = sum((a.dtype.descr for a in arrays), [])
         newrecarray = np.empty(len(arrays[0]), dtype=newtype)
@@ -414,14 +414,14 @@ class ModelAggregator(object):
 
     def train_dummy(self, **kwargs):
         dummy_trainer = trainers.DummyTrainer(**kwargs)
-        dummy_trainer.train(self.dataset, 
+        dummy_trainer.train(self.dataset,
                             randomized_search=False)
         self.models.append(dummy_trainer.model)
         return dummy_trainer.model
 
     def train_hour_weekday(self, **kwargs):
         hour_weekday_trainer = trainers.HourWeekdayBinModelTrainer(**kwargs)
-        hour_weekday_trainer.train(self.dataset, 
+        hour_weekday_trainer.train(self.dataset,
                                    randomized_search=False)
         self.models.append(hour_weekday_trainer.model)
         return hour_weekday_trainer.model
@@ -454,7 +454,7 @@ class ModelAggregator(object):
         extra_trees_trainer = trainers.ExtraTreesTrainer(**kwargs)
         extra_trees_trainer.train(self.dataset)
         self.models.append(extra_trees_trainer.model)
-        return extra_trees_trainer.model 
+        return extra_trees_trainer.model
 
     def train_all(self, **kwargs):
         self.train_dummy(**kwargs)
@@ -469,7 +469,7 @@ class ModelAggregator(object):
         self.select_model()
         self.score()
         return self.models
-    
+
     def select_model(self):
         for model in self.models:
             if model.best_score_ > self.best_score:
@@ -504,11 +504,12 @@ class ModelAggregator(object):
 
 class MnV(object):
     def __init__(self,
-                 input_file, 
+                 input_file,
                  address=None,
                  save=False,
                  use_tmy=False,
-                 plot=False, 
+                 plot=False,
+                 k=10,
                  **kwargs):
         if address == '': address = None
         self.address = address
@@ -535,7 +536,8 @@ class MnV(object):
                                  dts=self.p.dts_post,
                                  feature_names=self.p.feature_names)
         self.m_pre = ModelAggregator(dataset=self.A)
-        self.m_pre.train_all(**kwargs)
+        folds = cross_validation.check_cv(k, self.A.X_s, self.A.y_s)
+        self.m_pre.train_all(k = folds, **kwargs)
         #if plot:
         #    visualize.Visualize(baseline=self.m.error_metrics.b,
         #                        prediction=self.m.error_metrics.p,
@@ -568,9 +570,10 @@ class MnV(object):
             self.E.write_to_csv()
 
         if self.address is not None and self.use_tmy:
-            # build a second model based on the post-retrofit data 
+            # build a second model based on the post-retrofit data
             self.m_post = ModelAggregator(dataset=self.D)
-            self.m_post.train_all(**kwargs)
+            folds = cross_validation.check_cv(k, self.D.X_s, self.D.y_s)
+            self.m_post.train_all(k = folds, **kwargs)
             #if plot:
             #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
             #                        prediction=self.m_post.error_metrics.p,
@@ -578,8 +581,8 @@ class MnV(object):
             #                        text=str(self.m_post),fname='Post_training_report')
             tmy_data = location.TMYData(
                          lat=self.locale.lat,
-                         lon=self.locale.lon, 
-                         year=None, 
+                         lon=self.locale.lon,
+                         year=None,
                          interval=str(self.p.interval_seconds/60)+'m',
                          use_dp= self.p.outside_dp_name in self.A.feature_names
                          )
@@ -636,8 +639,8 @@ class MnV(object):
                   "Meteorological Year data near: %s"%(self.locale.real_addrs)
             rv += str(self.GvsH)
         return rv
- 
-if __name__=='__main__': 
+
+if __name__=='__main__':
     import pdb
     f = open('data/ex2.csv', 'Ur')
     cps = [
@@ -647,7 +650,7 @@ if __name__=='__main__':
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
     # one example
-    mnv = MnV(input_file=f, 
+    mnv = MnV(input_file=f,
               changepoints=cps,
               address=None,
               save=True)
