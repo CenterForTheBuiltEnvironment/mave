@@ -1,6 +1,6 @@
 Mave
 ======
-Mave is a tool for automated measurement and verification. At it's most simple, 
+Mave is a tool for automated measurement and verification. At its most simple, 
 the aim is to read energy consumption data from before and after a retrofit 
 (pre-retrofit and post-retrofit data) and to predict how much energy the 
 retrofit saved. Mave does this by training a model to the data and using 
