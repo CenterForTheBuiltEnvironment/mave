@@ -79,6 +79,7 @@ class SVRTrainer(ModelTrainer):
         super(SVRTrainer, self).__init__(**kwargs) 
 
 class RandomForestTrainer(ModelTrainer):
+    #TODO: check the validity of max_features=4  
     max_features = 4
     params = {
                 "max_depth": [4, 5, 6, 7, 8, 9, 10, None],

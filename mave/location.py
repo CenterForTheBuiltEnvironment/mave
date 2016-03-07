@@ -103,7 +103,7 @@ class Weather(object):
             out_time = np.vstack(self.target_dts).astype(str)
             out_data = np.column_stack(self.interp_data).astype(str)
             data_frame = np.column_stack([out_time,out_data])
-            np.savetxt(str(geocode)+'.csv',data_frame,\
+            np.savetxt(str(geocode)+'_weather.csv',data_frame,\
                        delimiter=',',header = self.headers,\
                        fmt ='%s',comments='')
 

@@ -39,7 +39,8 @@ def main(address=None,
     tmy = mave.location.TMYData(location=l,
                                 year=year,
                                 interp_interval=str(interval)+'m',
-                                use_dp=True)               
+                                use_dp=True,
+                                save=True)               
     log.info(('Original TMY data saved to %s_TMY.epw'
              %l.geocode))
     log.info(('Interpolated, cleaned TMY data saved to %s'
