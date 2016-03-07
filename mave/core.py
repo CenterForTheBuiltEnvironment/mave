@@ -536,7 +536,9 @@ class MnV(object):
                                  dts=self.p.dts_post,
                                  feature_names=self.p.feature_names)
         self.m_pre = ModelAggregator(dataset=self.A)
-        folds = cross_validation.check_cv(k, self.A.X_s, self.A.y_s)
+        folds = cross_validation.KFold(len(self.A.X_s),
+                                       n_folds=k, 
+                                       shuffle=True)
         self.m_pre.train_all(k = folds, **kwargs)
         #if plot:
         #    visualize.Visualize(baseline=self.m.error_metrics.b,
@@ -572,7 +574,9 @@ class MnV(object):
         if self.address is not None and self.use_tmy:
             # build a second model based on the post-retrofit data
             self.m_post = ModelAggregator(dataset=self.D)
-            folds = cross_validation.check_cv(k, self.D.X_s, self.D.y_s)
+            folds = cross_validation.KFold(len(self.D.X_s),
+                                           n_folds=k, 
+                                           shuffle=True)
             self.m_post.train_all(k = folds, **kwargs)
             #if plot:
             #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
