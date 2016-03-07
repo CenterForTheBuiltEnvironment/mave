@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+"""
+Returns a csv file containing typical meteorological data
+for a given address from the nearest location available 
+in the epwurl.csv file (based on nearest lat long lookup)
+
+Arguments:
+an address (uses google maps search api)
+a year (to overwrite TMY data year if needed)
+an interval of time to interpolate to
+
+@author Paul Raftery <p.raftery@berkeley.edu>
+"""
+
+import mave.location
+import argparse
+import pprint
+import dateutil.parser
+from datetime import datetime
+import time
+import logging
+
+logging.basicConfig(filename='mave-tmy.log', level=logging.INFO)
+log = logging.getLogger("mave")
+log.addHandler(logging.StreamHandler())
+
+def main(address=None,
+         year=None,
+         interval=None,
+         **kwargs):
+    l = mave.location.Location(address)
+    log.info(("Identified address as %s, at lat: %s long: %s)"
+             %(l.real_addrs,l.lat,l.lon)))
+    log.info("Nearest geocode (weather station) is: %s"%l.geocode)
+    if interval is None:
+        interval = 60
+        log.info('No interval provided, using default: %i minutes'%interval)
+    log.info('Downloading TMY data, which may take several minutes...')
+    tmy = mave.location.TMYData(location=l,
+                                year=year,
+                                interp_interval=str(interval)+'m',
+                                use_dp=True)               
+    log.info(('Original TMY data saved to %s_TMY.epw'
+             %l.geocode))
+    log.info(('Interpolated, cleaned TMY data saved to %s'
+             %tmy.tmy_file))
+    
+if __name__=='__main__': 
+    # parse args
+    prs = argparse.ArgumentParser()
+    # required argument
+    prs.add_argument("address", 
+                     help="an address (uses google maps search API)")
+    # optional args
+    prs.add_argument("-y", "--year", type=int,
+                     help="optional year to overwrite year in TMY data")
+    prs.add_argument("-i", "--interval", type=int,
+                     help="interval (in minutes) for interpolation")
+    args = prs.parse_args()  
+    main(**args.__dict__)
+

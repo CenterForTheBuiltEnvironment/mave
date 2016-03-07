@@ -63,12 +63,12 @@ class Location(object):
 
 class Weather(object):
     def __init__(self,
-                 start,
-                 end,
-                 key,
-                 geocode,
-                 interp_interval,
-                 save,
+                 start=None,
+                 end=None,
+                 key=None,
+                 geocode=None,
+                 interp_interval=None,
+                 save=None,
                  **kwargs):
         self.start=start; self.end=end; self.interp_interval=interp_interval
         if start > end:
@@ -103,7 +103,7 @@ class Weather(object):
             out_time = np.vstack(self.target_dts).astype(str)
             out_data = np.column_stack(self.interp_data).astype(str)
             data_frame = np.column_stack([out_time,out_data])
-            np.savetxt('weather.csv',data_frame,\
+            np.savetxt(str(geocode)+'.csv',data_frame,\
                        delimiter=',',header = self.headers,\
                        fmt ='%s',comments='')
 
@@ -202,11 +202,22 @@ class Weather(object):
 
 
 class TMYData(object):
-    def __init__(self, lat, lon, year, interval, use_dp=False, **kwargs):
+    def __init__(self, 
+                 location=None, 
+                 year=None, 
+                 interp_interval=None, 
+                 use_dp=False,
+                 save=None, 
+                 **kwargs):
         self.use_dp = use_dp
-        self.tmy_file, self.cleaned_tmy = self.getTMY(lat, lon, year, interval)
+        self.location = location
+        self.tmy_file, self.cleaned_tmy = self.getTMY(self.location.lat, 
+                                                      self.location.lon, 
+                                                      year, 
+                                                      interp_interval,
+                                                      save)
 
-    def getTMY(self,lat,lon,year,interval):
+    def getTMY(self,lat,lon,year,interp_interval,save):
         resource_package = __name__
         resource_path = os.path.join('data', 'epwurl.csv')
         f = pkg_resources.resource_string(resource_package, resource_path) 
@@ -234,10 +245,10 @@ class TMYData(object):
            cols = ','.join(names[:5])+','+','.join(names[6:8])
         tmy = np.genfromtxt(z.open(tmy_file), delimiter=',',\
                    dtype=None, skip_header=8, names=names, usecols=cols)
-        if year is None: 
-            np.place(tmy["year"],tmy["year"]!=datetime.datetime.now().year,\
-                     datetime.datetime.now().year)
-        else:
+        if year is not None: 
+            #np.place(tmy["year"],tmy["year"]!=datetime.datetime.now().year,\
+            #         datetime.datetime.now().year)
+        #else:
             np.place(tmy["year"],tmy["year"]!=year,year)
         comb_dt = np.column_stack((tmy['year'],tmy['month'],\
                                    tmy['day'],(tmy['hour']-1),\
@@ -247,7 +258,7 @@ class TMYData(object):
                                 comb_dt)
         unix_dt = map(lambda x: time.mktime(x.timetuple()),dt)
         target_dts = np.arange(dt[0],dt[-1],\
-                               dtype='datetime64[%s]'%interval)\
+                               dtype='datetime64[%s]'%interp_interval)\
                                .astype(datetime.datetime)
         target_dts = np.append(target_dts,dt[-1])
         target_unix = map(lambda x: time.mktime(x.timetuple()),target_dts)
@@ -256,15 +267,18 @@ class TMYData(object):
             column_names = ['LocalDateTime','OutsideDryBulbTemperature','OutsideDewPointTemperature']
             interp_dp = np.interp(target_unix,unix_dt,tmy['DewPoint'])
             cleaned_tmy = np.column_stack((target_dts,interp_db,interp_dp))
-            cleaned_tmy = np.vstack((column_names,cleaned_tmy))
         else:
             column_names = ['LocalDateTime','OutsideDryBulbTemperature']
             cleaned_tmy = np.column_stack((target_dts,interp_db))   
-            cleaned_tmy = np.vstack((column_names,cleaned_tmy))
+        cleaned_tmy = np.vstack((column_names,cleaned_tmy))
         headers = 'This CSV file is a cleaned version of the TMY data file.',\
                  'The data were generated from file'+str(tmy_file)
-        np.savetxt('./clean_%s.csv'%(tmy_file),\
-                   cleaned_tmy,delimiter=',',fmt='%s', comments='')
+        if save:
+            np.savetxt('%s_clean_TMY.csv'%(self.location.geocode),
+                       cleaned_tmy,
+                       delimiter=',',
+                       fmt='%s', 
+                       comments='')
         return tmy_file, cleaned_tmy
 
 if __name__ == "__main__":
@@ -273,13 +287,17 @@ if __name__ == "__main__":
     print 'address (from user):',address
     print 'address (actual):',test.real_addrs
     print 'lat:',test.lat,' lon:',test.lon
-    print 'nearest_airport:',test.geocode
+    print 'nearest_geocode:',test.geocode
     start = datetime.datetime(2015,1,1,0,0)
-    end = datetime.datetime(2015,2,1,0,0)
-    interp_interval = '15m'
-    use_dp = False
-    #hist_weather = Weather(start,end,None,test.geocode,\
-    #                       interp_interval,False)
-    test2 = TMYData(test.lat,test.lon,None,interp_interval,use_dp)
-    print 'TMY file:',test2.tmy_file
-    print 'TMY Data:', test2.cleaned_tmy
+    end = datetime.datetime(2015,1,3,0,0)
+    i = '15m'
+    #hist_weather = Weather(start=start, end=end, key=None, 
+    #                       geocode=test.geocode, interp_interval=i,
+    #                       save=False)
+    tmy = TMYData(location=test,
+                  year=2015,
+                  interp_interval=i,
+                  use_dp=False,
+                  save=True)
+    print 'TMY file:',tmy.tmy_file
+    print 'TMY Data:', tmy.cleaned_tmy
