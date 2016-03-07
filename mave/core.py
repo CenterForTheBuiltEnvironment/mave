@@ -198,7 +198,12 @@ class Preprocessor(object):
         d = d0
         for s in column_names:
             if s == outside_db_name:
-                d = np.column_stack( (d, data[s]) )
+                if np.median(data[s]) > 32.0:
+                    # almost certainly in crazy ancient units [F]
+                    # unless the building is in Antartica
+                    #TODO: add log entry
+                    t = 5*(data[s]-32.0)/9
+                d = np.column_stack( (d, t) )
                 self.feature_names.append(str(s))
                 if previous_data_points > 0:
                     # create input features using historical data
@@ -206,14 +211,14 @@ class Preprocessor(object):
                     for v in range(1, previous_data_points + 1):
                         past_hours = v * 24 / (previous_data_points + 1)
                         n_vals = past_hours * self.vals_per_hr
-                        past_data = np.roll(data[s], n_vals)
+                        past_data = np.roll(t, n_vals)
                         # for the first day in the file
                         # there will be no historical data
                         # use the data from the next day as a rough estimate
                         past_data[0:n_vals] = past_data[24*self.vals_per_hr: \
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
-                        self.feature_names.append(str(s)+'_'+ str(past_hours))
+                        self.feature_names.append(str(s)+'_-'+ str(past_hours))
             elif not s == target_name:
                 # just add the column as an input feature
                 # without historical data
