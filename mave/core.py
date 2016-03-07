@@ -26,6 +26,8 @@ import comparer
 import dataset
 import visualize
 import location
+import logging
+log = logging.getLogger("core")
 
 class Preprocessor(object):
 
@@ -35,7 +37,6 @@ class Preprocessor(object):
 
     def __init__(self,
                  input_file,
-                 verbose=False,
                  use_holidays=True,
                  use_month=False,
                  start_frac=0.0,
@@ -55,13 +56,13 @@ class Preprocessor(object):
                  X_standardizer = None,
                  previous_data_points = 2,
                  **kwargs):
+        log.info("Preprocessing started")
         self.timestamp_format = timestamp_format
         self.datetime_column_name = datetime_column_name
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
         self.use_month = use_month
         self.input_file = input_file
-        self.verbose = verbose
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
         self.outside_dp_name = outside_dp_name
@@ -92,28 +93,35 @@ class Preprocessor(object):
         data = data[ start_index : end_index ]
         # parse datetimes
         dcn = self.datetime_column_name
+        log.info("Converting timestamps into datetimes")
         try:
             dts = map(lambda d: datetime.strptime(d,
                                                   self.timestamp_format),
                                                    data[dcn])
         except ValueError:
+            log.warn(("Timestamp in csv file doesn't match specified "
+                      "format, %s. Using (much slower) dateutil.parser "
+                      "instead, assuming dayfirst = %s and yearfirst = %s."
+                      %(self.timestamp_format,dayfirst,yearfirst))) 
             dts = map(lambda d: dateutil.parser.parse(d,
                                                       dayfirst=dayfirst,
                                                       yearfirst=yearfirst),
                                                        data[dcn])
         dtypes = data.dtype.descr
-        dtypes[0] = dtypes[0][0], '|S20' # force 20 char strings for datetimes
+        dtypes[0] = dtypes[0][0], '|S20' # force 20 chars for datetimes
         for i in range(1,len(dtypes)):
             dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
         data = data.astype(dtypes)
-
+        log.info("Creating input features from datetimes")
         data, dts, self.interval_seconds, self.vals_per_hr = \
             self.standardize_datetimes(data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
 
         # download weather data if no outside_db_name
-        if (outside_db_name is None or outside_db_name==['']) and locale!=None:
+        if (outside_db_name is None or outside_db_name==['']) \
+            and locale!=None:
+            log.info("Downloading weather data as none found in input file")
             outside_db_name = ['OutsideDryBulbTemperature']
             hist_weather = location.Weather(
                               start=dts[0], end=dts[-1],
@@ -124,19 +132,21 @@ class Preprocessor(object):
                                   dtype=[(outside_db_name[0],'f8')])
             data=self.join_recarrays([data, outside_db])
 
-        # add other (non datetime related) input features
+        log.info("Creating other (non datetime related) input features")
         data, target_col_ind = self.append_input_features(data, d,\
                                                  outside_db_name,\
                                                  target_name)
-        # remove data
+        log.info("Cleaning up data - rmoving outliers, missing data, etc.")
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
         # ensure that the datetimes match the input features
-        if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() or \
-            (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
+        if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() \
+            or (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
             raise Error(" - The datetimes in the datetimes array do not \
                 match those in the input features array")
-        self.cps = self.changepoint_feature(changepoints=changepoints, **kwargs)
+        self.cps = self.changepoint_feature(changepoints=changepoints, 
+                                            **kwargs)
+        log.info("Splitting data into pre- and post-retrofit datasets")
         self.split_dataset(test_size=test_size)
 
     def process_headers(self):
@@ -182,11 +192,13 @@ class Preprocessor(object):
                     keep_inds = np.ones(len(y),dtype=bool)
                 else:
                     keep_inds = 0
-            if self.verbose:
-                outliers = y[~keep_inds]
-                outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
-                print '\nRemoved the following %s outlier value(s):\n%s'%\
-                      (len(outliers),zip(outlier_ts,outliers))
+            # log outlier datetimes and values
+            outliers = y[~keep_inds]
+            outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
+            log.warn(("Removed the following %s outlier value(s): "
+                      "\n%s"
+                      %(len(outliers),
+                        pprint.pformat(zip(outlier_ts,outliers)))))
             X = X[keep_inds]
             y = y[keep_inds]
             datetimes = datetimes[keep_inds]
@@ -201,7 +213,10 @@ class Preprocessor(object):
                 if np.median(data[s]) > 32.0:
                     # almost certainly in crazy ancient units [F]
                     # unless the building is in Antartica
-                    #TODO: add log entry
+                    log.warn(("The median outside drybulb temperature "
+                        " is high (> 32) - assumed that it is in degF and "
+                        " converted to degC to match units of weather and "
+                        " TMY data."))
                     t = 5*(data[s]-32.0)/9
                 d = np.column_stack( (d, t) )
                 self.feature_names.append(str(s))
@@ -286,24 +301,26 @@ class Preprocessor(object):
         gaps = np.greater(intervals, median_interval)
         gap_inds = np.nonzero(gaps)[0] # contains the left indices of the gaps
         NN = 0 # accumulate offset of gap indices as entries are added
+        missing_intervals = []
         for i in gap_inds:
             gap = intervals[i]
             gap_start = dts[i + NN]
             gap_end = dts[i + NN + 1]
+            missing_intervals.append(('from ' + str(gap_start),
+                                      'to ' + str(gap_end)))
             N = gap / median_interval - 1 # number of entries to add
             for j in range(1, N+1):
                 new_dt = gap_start + j*timedelta(seconds=median_interval)
                 new_row = np.array([(new_dt,) + (np.nan,) * (row_length - 1)],
                                                          dtype=data.dtype)
-                #TODO: Logs
-                #print ("-- Missing datetime interval between \
-                #         %s and %s" % (gap_start, gap_end))
                 data = np.append(data, new_row)
                 dts = np.append(dts, new_dt)
                 dts_ind = np.argsort(dts)
                 data = data[dts_ind]
             dts = dts[dts_ind] # sorts datetimes
             NN += N
+        log.info(("Missing datetime interval(s) in input file:\n%s" 
+                  %pprint.pformat(missing_intervals)))
         return data, dts, median_interval, vals_per_hr
 
     def round_datetime(self, dt, interval):
@@ -380,7 +397,7 @@ class Preprocessor(object):
                 # handle case where no changepoint is given
                 # by using a predefined fraction of the dataset
                 # to split into pre and post datasets.
-                # this is useful for testing the accuracy of the mmodel methods
+                # this is useful for testing the accuracy of modeling methods
                 # for datasets in which no retrofit is known to have occurred
                 pre = len(self.X_s)*(1-test_size)
                 post = len(self.X_s)*test_size
@@ -407,15 +424,6 @@ class ModelAggregator(object):
         self.best_model = None
         self.best_score = None
         self.error_metrics = None
-
-    def train(self, model):
-        try:
-            train = getattr(self, "train_%s" % model)
-            m = train()
-            self.select_model()
-            return m
-        except AttributeError:
-            raise Exception("Model trainer %s not implemented") % model
 
     def train_dummy(self, **kwargs):
         dummy_trainer = trainers.DummyTrainer(**kwargs)
@@ -462,21 +470,30 @@ class ModelAggregator(object):
         return extra_trees_trainer.model
 
     def train_all(self, **kwargs):
-        self.train_dummy(**kwargs)
+        #TODO: Uncomment other models when done with development
+        #log.info("Training dummy regressor models")
+        #self.train_dummy(**kwargs)
+        log.info("Training hour and weekday binning models")
         self.train_hour_weekday(**kwargs)
+        #log.info("Training K neightbors regressor models")
         #self.train_kneighbors(**kwargs)
+        log.info("Training random forest regressor models")
         self.train_random_forest(**kwargs)
+        #log.info("Training extra trees regressor models")
         #self.train_extra_trees(**kwargs)
         # These take forever and maybe aren't worth it?
         #self.train_svr(**kwargs)
         #self.train_gradient_boosting(**kwargs)
-
         self.select_model()
         self.score()
         return self.models
 
     def select_model(self):
         for model in self.models:
+            log.info(("Best %s model R2 score: %s, with parameters: %s"
+                     %(str(model.estimator).split('(')[0], 
+                       model.best_score_,
+                       model.best_params_)))
             if model.best_score_ > self.best_score:
                 self.best_score = model.best_score_
                 self.best_model = model
@@ -496,8 +513,9 @@ class ModelAggregator(object):
         rv += "\nBest model:\n%s"%self.best_model.best_estimator_
         try:
             imps = self.best_model.best_estimator_.feature_importances_
-            rv += "\nThe relative importances of input features are:\n%s"%imps
-            rv += "\nWhich corresponds to:\n%s"%self.dataset.feature_names
+            feats = self.dataset.feature_names
+            rv += ("\nThe relative importances of input features are:\n%s"%
+                  pprint.pformat([f+': '+str(i) for f,i in zip(feats,imps)]))
         except Exception, e:
             rv += ""
         rv += "\n\n=== Fit to the training data ==="
@@ -518,12 +536,16 @@ class MnV(object):
                  **kwargs):
         if address == '': address = None
         self.address = address
+        log.info("Assessing location string: %s"%self.address)
         if self.address is None:
             self.locale = None
+            log.info("No location provided")
         else:
             self.locale = location.Location(self.address)
+            log.info("Location identified as: %s"%self.locale.real_addrs)
         self.use_tmy = use_tmy
         # pre-process the input data file
+        log.info("Preprocessing the input file")
         self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
         # create datasets
         self.A = dataset.Dataset(dataset_type='A',
@@ -544,6 +566,7 @@ class MnV(object):
         folds = cross_validation.KFold(len(self.A.X_s),
                                        n_folds=k, 
                                        shuffle=True)
+        log.info("Fitting models to the preretrofit data")
         self.m_pre.train_all(k = folds, **kwargs)
         #if plot:
         #    visualize.Visualize(baseline=self.m.error_metrics.b,
@@ -582,6 +605,7 @@ class MnV(object):
             folds = cross_validation.KFold(len(self.D.X_s),
                                            n_folds=k, 
                                            shuffle=True)
+            log.info("Fitting models to the postretrofit data")
             self.m_post.train_all(k = folds, **kwargs)
             #if plot:
             #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
@@ -596,6 +620,7 @@ class MnV(object):
                          use_dp= self.p.outside_dp_name in self.A.feature_names
                          )
             tmy_csv = open('./clean_%s.csv'%tmy_data.tmy_file, 'Ur')
+            log.info("Preprocessing the TMY data file")
             self.p_tmy = Preprocessor(input_file=tmy_csv,
                                       X_standardizer=self.p.X_standardizer,
                                       **kwargs)
@@ -663,4 +688,4 @@ if __name__=='__main__':
               changepoints=cps,
               address=None,
               save=True)
-    print mnv
+    log.info(mnv)

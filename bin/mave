@@ -15,31 +15,36 @@ import pdb
 import io
 import os.path
 import sys
-from mave.core import Preprocessor, ModelAggregator, MnV
-from datetime import datetime
+import mave.core
 import argparse
 import ConfigParser
 import logging
 import pkg_resources
 import pprint
+from datetime import datetime
+import pdb
 
-def mave(input_file=None,
+logging.basicConfig(filename='mave.log', level=logging.INFO)
+log = logging.getLogger("mave")
+log.info("Starting mave")
+
+def main(input_file=None,
          config_file=None,
          changepoint=None,
          **kwargs):
+    log.info("Assessing input file: %s" % args.input_file)
     kws ={}
     config = ConfigParser.ConfigParser(allow_no_value=True)
     if config_file: 
         try:
             if not os.path.isfile(config_file): raise Exception
         except Exception as e: 
-            print e
-            print 'Configuration file (%s) not found'%config_file
+            log.error('Configuration file (%s) not found'%config_file)
             sys.exit()
         config.read(config_file)
     else:
         # no config file passed, use defaults:
-        print '\nNo config file entered - Using default settings' 
+        log.info('No config file entered - Using default settings') 
         resource_path = os.path.join('config', 'default.cfg')
         default = pkg_resources.resource_string('mave', resource_path)
         config.readfp(io.BytesIO(default))
@@ -61,12 +66,13 @@ def mave(input_file=None,
     kws.update(kwargs)
     # if user enters a single changepoint at command line, use it 
     if changepoint: 
-        kws['changepoints'] = [(changepoint,Preprocessor.POST_DATA_TAG)]
-    logger.info('\nConfiguration used for this analysis:\n%s\n'%\
+        kws['changepoints'] = [(changepoint,
+                                mave.core.Preprocessor.POST_DATA_TAG)]
+    log.info('Configuration used for this analysis:\n%s'%\
                 pprint.pformat(kws))
     f = open(input_file, 'Ur')
-    mnv = MnV(input_file=f,**kws)
-    logger.info(mnv)
+    mnv = mave.core.MnV(input_file=f, **kws)
+    log.info("Outputting analysis results:\n %s"%(mnv))
 
 if __name__=='__main__': 
     # parse args
@@ -76,9 +82,9 @@ if __name__=='__main__':
                      help="filename for input data")
     # identification of the post-retrofit period
     prs.add_argument("-cp", "--changepoint", 
-                     help="datetime at which post-retrofit period begins")
+                     help="datetime at which postretrofit period begins")
     prs.add_argument("-ts", "--test_size", type=float,
-                     help="fraction of the file used as post_retrofit period")
+                     help="fraction of the file used as postretrofit period")
     prs.add_argument("-ad", "--address", type=str,
                      help="address of the building")
     # output controls
@@ -99,20 +105,12 @@ if __name__=='__main__':
                      help="num search iterations in randomized grid search")
     # option to provide more advanced control using a configuration file
     prs.add_argument("-conf", "--config_file", type=str,
-                     help="use specified config file for more advanced input")
+                     help="use specified config file for advanced input")
     args = prs.parse_args()  
-    
-    # set up logging to screen and file
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    fo = logging.FileHandler("mave.log")
-    fo.setLevel(logging.INFO)
-    logger.addHandler(fo)
     if args.print_screen:
     # log to screen also
         po = logging.StreamHandler()
         po.setLevel(logging.INFO)
-        logger.addHandler(po)
-    logger.info("\nAssessing input file: %s" % args.input_file)
+        log.addHandler(po)
     
-    mave(**args.__dict__)
+    main(**args.__dict__)
