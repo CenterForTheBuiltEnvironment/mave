@@ -66,6 +66,7 @@ class Preprocessor(object):
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
         self.outside_dp_name = outside_dp_name
+        self.locale = locale 
         # process the headers
         self.headers, self.named_cols = self.process_headers()
         self.feature_names = ['Minute','Hour','DayOfWeek']
@@ -117,20 +118,28 @@ class Preprocessor(object):
             self.standardize_datetimes(data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
-
-        # download weather data if no outside_db_name
-        if (outside_db_name is None or outside_db_name==['']) \
-            and locale!=None:
-            log.info("Downloading weather data as none found in input file")
-            outside_db_name = ['OutsideDryBulbTemperature']
+        
+        if self.locale and not outside_db_name in data.dtype.names:
+            pdb.set_trace()
+            log.warn(("No match found for outside air temperature"
+                      " name (%s) in the input file column heards: %s"
+                      " Downloading for given location: %s"
+                      %(outside_db_name,
+                        data.dtype.names,
+                        self.locale.real_addrs)))
+            i_min = str(self.interval_seconds/60)+'m'
             hist_weather = location.Weather(
-                              start=dts[0], end=dts[-1],
-                              key=None, geocode=locale.geocode,
-                              interp_interval=str(self.interval_seconds/60)+'m',
-                              save=False, **kwargs)
+                               start=dts[0], 
+                               end=dts[-1],
+                               key=None, 
+                               geocode=locale.geocode,
+                               interp_interval=i_min,
+                               **kwargs)
             outside_db = np.array(hist_weather.interp_data[0],\
                                   dtype=[(outside_db_name[0],'f8')])
-            data=self.join_recarrays([data, outside_db])
+            outside_dp = np.array(hist_weather.interp_data[1],\
+                                  dtype=[(outside_dp_name[0],'f8')])
+            data=self.join_recarrays([data, outside_db, outside_dp])
 
         log.info("Creating other (non datetime related) input features")
         data, target_col_ind = self.append_input_features(data, d,\
@@ -206,7 +215,7 @@ class Preprocessor(object):
 
     def append_input_features(self, data, d0, outside_db_name,\
                               target_name, previous_data_points=2):
-        column_names = data.dtype.names[1:] # no need to include datetime column
+        column_names = data.dtype.names[1:]
         d = d0
         for s in column_names:
             if s == outside_db_name:
