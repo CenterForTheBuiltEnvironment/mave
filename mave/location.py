@@ -75,9 +75,11 @@ class Weather(object):
             error_msg =  "start time has to before the end time"
             sys.exit(error_msg)
         else:
-            self.target_dts = np.arange(start, end,
-                                       dtype='datetime64[%s]'%interp_interval)\
-                                       .astype(datetime.datetime)
+            dtype='datetime64[%sm]'%(interp_interval)
+            self.target_dts = np.arange(
+                                  start, 
+                                  end,
+                                  dtype=dtype).astype(datetime.datetime)
         interval = self.target_dts[-1]-self.target_dts[-2]
         self.target_dts = self.target_dts + (start-self.target_dts[0])
         if self.target_dts[-1] <= (end - interval):
@@ -260,7 +262,7 @@ class TMYData(object):
                                 comb_dt)
         unix_dt = map(lambda x: time.mktime(x.timetuple()),dt)
         target_dts = np.arange(dt[0],dt[-1],\
-                               dtype='datetime64[%s]'%interp_interval)\
+                               dtype='datetime64[%sm]'%(interp_interval))\
                                .astype(datetime.datetime)
         target_dts = np.append(target_dts,dt[-1])
         target_unix = map(lambda x: time.mktime(x.timetuple()),target_dts)
@@ -292,7 +294,7 @@ if __name__ == "__main__":
     print 'nearest_geocode:',test.geocode
     start = datetime.datetime(2015,1,1,0,0)
     end = datetime.datetime(2015,1,3,0,0)
-    i = '15m'
+    i = 15
     #hist_weather = Weather(start=start, end=end, key=None, 
     #                       geocode=test.geocode, interp_interval=i,
     #                       save=False)

@@ -52,7 +52,7 @@ def main(address=None,
                                          end=e,
                                          key=None,
                                          geocode=l.geocode,
-                                         interp_interval=str(interval)+'m',
+                                         interp_interval=interval,
                                          save=True)               
     log.info(('Interpolated weather data saved to %s_weather.csv'
              %l.geocode))
