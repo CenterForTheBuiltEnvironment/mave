@@ -598,12 +598,8 @@ class MnV(object):
         # single model (no weather lookup, no tmy normalization)
         # evaluate the output of the model against the post-retrofit data
         self.E = dataset.Dataset(dataset_type='E',
-                                 X_s=self.D.X_s,
-                                 X_standardizer=self.p.X_standardizer,
-                                 y_s=self.m_pre.best_model.predict(self.D.X_s),
-                                 y_standardizer=self.p.y_standardizer,
-                                 dts=self.D.dts,
-                                 feature_names=self.p.feature_names)
+                                 base_dataset= self.D,
+                                 y_s=self.m_pre.best_model.predict(self.D.X_s),)
         self.DvsE = comparer.Comparer(comparison=self.E, baseline=self.D)
         #if plot:
         #    visualize.Visualize(baseline=measured_post_retrofit,
@@ -660,12 +656,8 @@ class MnV(object):
                          feature_names=self.p_tmy.feature_names)
             self.H = dataset.Dataset(
                          dataset_type='H',
-                         X_s=self.p_tmy.X_s,
-                         X_standardizer=self.p.X_standardizer,
-                         y_s=self.m_post.best_model.predict(self.p_tmy.X_s),
-                         y_standardizer=self.p.y_standardizer,
-                         dts=self.p_tmy.dts,
-                         feature_names=self.p_tmy.feature_names)
+                         base_dataset=self.G,
+                         y_s=self.m_post.best_model.predict(self.p_tmy.X_s))
             self.GvsH = comparer.Comparer(comparison=self.H, baseline=self.G)
             #if plot:
             #    visualize.Visualize(baseline=pre_model_tmy,

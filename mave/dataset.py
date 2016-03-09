@@ -32,8 +32,9 @@ class Dataset(object):
            'G':'TMY prediction - preretrofit model',
            'H':'TMY prediction - postretrofit model'}
 
-    def __init__(self, 
+    def __init__(self,
                  dataset_type=None,
+                 base_dataset=None, 
                  X=None, 
                  X_s=None,
                  X_standardizer=None,
@@ -47,6 +48,14 @@ class Dataset(object):
         assert dataset_type in set(['A','B','C','D','E','F','G','H']), \
                "dataset_type is no a character from A to H: %str"%datase_type
         self.dataset_type = dataset_type
+        # if a base dataset is passed as an arg, use the relevant fields
+        if base_dataset:
+            X=base_dataset.X 
+            X_s=base_dataset.X_s
+            X_standardizer=base_dataset.X_standardizer
+            y_standardizer=base_dataset.y_standardizer
+            dts=base_dataset.dts 
+            feature_names=base_dataset.feature_names
         # ensure standardizers are present
         assert isinstance(X_standardizer, preprocessing.data.StandardScaler), \
                "X_standardizer is not an instance " + \
