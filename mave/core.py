@@ -39,6 +39,7 @@ class Preprocessor(object):
                  input_file,
                  use_holidays=True,
                  use_month=False,
+                 use_tmy=False,
                  start_frac=0.0,
                  end_frac=1.0,
                  changepoints=None,
@@ -62,6 +63,8 @@ class Preprocessor(object):
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
         self.use_month = use_month
+        pdb.set_trace()
+        self.use_tmy = use_tmy
         self.input_file = input_file
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
@@ -86,7 +89,9 @@ class Preprocessor(object):
                              skip_header=len(self.headers)-1,
                              usecols=self.named_cols,
                              names=True,
-                             missing_values='NA')
+                             missing_values={None:['NA','N/A','?']})
+        # remove rows with blank datetime entries
+        data = data[data['LocalDateTime'] != '']
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
         start_index = int(start_frac * data_L)
@@ -120,32 +125,38 @@ class Preprocessor(object):
         d = np.column_stack(vectorized_process_datetime(dts))
         
         if self.locale and not outside_db_name in data.dtype.names:
-            pdb.set_trace()
-            log.warn(("No match found for outside air temperature"
-                      " name (%s) in the input file column heards: %s"
+            log.info(("No match found for outside air temperature"
+                      " name (%s) in the input file column headers: %s."
                       " Downloading for given location: %s"
                       %(outside_db_name,
                         data.dtype.names,
                         self.locale.real_addrs)))
             i_min = str(self.interval_seconds/60)+'m'
-            hist_weather = location.Weather(
-                               start=dts[0], 
-                               end=dts[-1],
-                               key=None, 
-                               geocode=locale.geocode,
-                               interp_interval=i_min,
-                               **kwargs)
-            outside_db = np.array(hist_weather.interp_data[0],\
-                                  dtype=[(outside_db_name[0],'f8')])
-            outside_dp = np.array(hist_weather.interp_data[1],\
-                                  dtype=[(outside_dp_name[0],'f8')])
-            data=self.join_recarrays([data, outside_db, outside_dp])
-
+            try:
+                hist_weather = location.Weather(start=dts[0], 
+                                                end=dts[-1],
+                                                key=None, 
+                                                geocode=locale.geocode,
+                                                interp_interval=i_min,
+                                                **kwargs)
+                outside_db = np.array(hist_weather.interp_data[0],\
+                                      dtype=[(outside_db_name,'f8')])
+                outside_dp = np.array(hist_weather.interp_data[1],\
+                                      dtype=[(outside_dp_name,'f8')])
+                pdb.set_trace()
+                data=self.join_recarrays([data, outside_db, outside_dp])
+            except Exception, e:
+                log.warn(("Weather download unsuccessful. Fitting models "
+                          "without weather data. TMY normalization will "
+                          "also not be performed (even if requested).")) 
+                self.use_tmy=False
+        pdb.set_trace()
         log.info("Creating other (non datetime related) input features")
-        data, target_col_ind = self.append_input_features(data, d,\
-                                                 outside_db_name,\
-                                                 target_name)
-        log.info("Cleaning up data - rmoving outliers, missing data, etc.")
+        data, target_col_ind = self.append_input_features(data,
+                                                          d,
+                                                          outside_db_name,
+                                                          target_name)
+        log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
         # ensure that the datetimes match the input features
@@ -204,13 +215,14 @@ class Preprocessor(object):
             # log outlier datetimes and values
             outliers = y[~keep_inds]
             outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
-            log.warn(("Removed the following %s outlier value(s): "
-                      "\n%s"
-                      %(len(outliers),
-                        pprint.pformat(zip(outlier_ts,outliers)))))
-            X = X[keep_inds]
-            y = y[keep_inds]
-            datetimes = datetimes[keep_inds]
+            if len(outliers) > 0:
+                log.warn(("Removed the following %s outlier value(s): "
+                          "\n%s"
+                          %(len(outliers),
+                            pprint.pformat(zip(outlier_ts,outliers)))))
+                X = X[keep_inds]
+                y = y[keep_inds]
+                datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
     def append_input_features(self, data, d0, outside_db_name,\
@@ -227,6 +239,8 @@ class Preprocessor(object):
                         " converted to degC to match units of weather and "
                         " TMY data."))
                     t = 5*(data[s]-32.0)/9
+                else:
+                    t = data[s]
                 d = np.column_stack( (d, t) )
                 self.feature_names.append(str(s))
                 if previous_data_points > 0:
@@ -538,24 +552,22 @@ class MnV(object):
     def __init__(self,
                  input_file,
                  address=None,
-                 save=False,
                  use_tmy=False,
                  plot=False,
                  k=10,
                  **kwargs):
-        if address == '': address = None
-        self.address = address
-        log.info("Assessing location string: %s"%self.address)
-        if self.address is None:
+        pdb.set_trace()
+        if address is None or address == '':
             self.locale = None
             log.info("No location provided")
         else:
-            self.locale = location.Location(self.address)
+            self.locale = location.Location(address)
+            log.info("Assessing location string: %s"%address)
             log.info("Location identified as: %s"%self.locale.real_addrs)
-        self.use_tmy = use_tmy
         # pre-process the input data file
         log.info("Preprocessing the input file")
         self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
+        self.use_tmy = self.p.use_tmy
         # create datasets
         self.A = dataset.Dataset(dataset_type='A',
                                  X_s=self.p.X_pre_s,
@@ -607,8 +619,21 @@ class MnV(object):
             self.A.write_to_csv()
             self.D.write_to_csv()
             self.E.write_to_csv()
-
-        if self.address is not None and self.use_tmy:
+        pdb.set_trace()
+        if self.locale and self.use_tmy:
+            log.info("Downloading TMY data for this location")
+            try:
+                use_dp = self.p.outside_dp_name in self.A.feature_names
+                tmy_data = location.TMYData(
+                             lat=self.locale.lat,
+                             lon=self.locale.lon,
+                             year=None,
+                             interval=str(self.p.interval_seconds/60)+'m',
+                             use_dp=use_dp)
+            except e:
+                log.warn("TMY data download unsuccessful"%e)
+                self.use_tmy = False
+        if self.locale and self.use_tmy:
             # build a second model based on the post-retrofit data
             self.m_post = ModelAggregator(dataset=self.D)
             folds = cross_validation.KFold(len(self.D.X_s),
@@ -621,13 +646,6 @@ class MnV(object):
             #                        prediction=self.m_post.error_metrics.p,
             #                        p_X=X_post,name_list=self.p.name_list,
             #                        text=str(self.m_post),fname='Post_training_report')
-            tmy_data = location.TMYData(
-                         lat=self.locale.lat,
-                         lon=self.locale.lon,
-                         year=None,
-                         interval=str(self.p.interval_seconds/60)+'m',
-                         use_dp= self.p.outside_dp_name in self.A.feature_names
-                         )
             tmy_csv = open('./clean_%s.csv'%tmy_data.tmy_file, 'Ur')
             log.info("Preprocessing the TMY data file")
             self.p_tmy = Preprocessor(input_file=tmy_csv,
@@ -673,13 +691,14 @@ class MnV(object):
               " measured post-retrofit data and the predicted" + \
               " consumption:"
         rv += str(self.DvsE)
-        if self.address is not None and self.use_tmy:
+        if self.locale and self.use_tmy:
             rv += "\n\n===== Post-retrofit model training summary ====="
             rv += str(self.m_post)
             rv += "\n\n===== Results normalized to TMY data ====="
-            rv += "\nThese results compare the energy consumption predicted "+\
-         	        "by both the pre and post-retrofit models using Typical "+\
-                  "Meteorological Year data near: %s"%(self.locale.real_addrs)
+            rv += ("\nThese results compare the energy consumption"
+         	         " predicted by both the pre and post-retrofit models"
+                   " using Typical Meteorological Year data near: %s"
+                   %(self.locale.real_addrs))
             rv += str(self.GvsH)
         return rv
 
