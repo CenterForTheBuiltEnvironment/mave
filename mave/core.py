@@ -63,7 +63,6 @@ class Preprocessor(object):
         self.holiday_keys = holiday_keys
         self.use_holidays = use_holidays
         self.use_month = use_month
-        pdb.set_trace()
         self.use_tmy = use_tmy
         self.input_file = input_file
         self.previous_data_points = previous_data_points
@@ -131,26 +130,25 @@ class Preprocessor(object):
                       %(outside_db_name,
                         data.dtype.names,
                         self.locale.real_addrs)))
-            i_min = str(self.interval_seconds/60)+'m'
             try:
-                hist_weather = location.Weather(start=dts[0], 
-                                                end=dts[-1],
-                                                key=None, 
-                                                geocode=locale.geocode,
-                                                interp_interval=i_min,
-                                                **kwargs)
+                hist_weather = location.Weather(
+                                   start=dts[0], 
+                                   end=dts[-1],
+                                   key=None, 
+                                   geocode=locale.geocode,
+                                   interp_interval=self.interval_seconds/60,
+                                   save=True)
                 outside_db = np.array(hist_weather.interp_data[0],\
                                       dtype=[(outside_db_name,'f8')])
                 outside_dp = np.array(hist_weather.interp_data[1],\
                                       dtype=[(outside_dp_name,'f8')])
-                pdb.set_trace()
                 data=self.join_recarrays([data, outside_db, outside_dp])
+                self.use_tmy=True
             except Exception, e:
                 log.warn(("Weather download unsuccessful. Fitting models "
                           "without weather data. TMY normalization will "
                           "also not be performed (even if requested).")) 
                 self.use_tmy=False
-        pdb.set_trace()
         log.info("Creating other (non datetime related) input features")
         data, target_col_ind = self.append_input_features(data,
                                                           d,
@@ -342,8 +340,9 @@ class Preprocessor(object):
                 data = data[dts_ind]
             dts = dts[dts_ind] # sorts datetimes
             NN += N
-        log.info(("Missing datetime interval(s) in input file:\n%s" 
-                  %pprint.pformat(missing_intervals)))
+        if len(missing_intervals) > 0:
+            log.info(("Missing datetime interval(s) in input file:\n%s" 
+                      %pprint.pformat(missing_intervals)))
         return data, dts, median_interval, vals_per_hr
 
     def round_datetime(self, dt, interval):
@@ -551,12 +550,11 @@ class ModelAggregator(object):
 class MnV(object):
     def __init__(self,
                  input_file,
+                 save=False,
                  address=None,
-                 use_tmy=False,
                  plot=False,
                  k=10,
                  **kwargs):
-        pdb.set_trace()
         if address is None or address == '':
             self.locale = None
             log.info("No location provided")
@@ -566,7 +564,9 @@ class MnV(object):
             log.info("Location identified as: %s"%self.locale.real_addrs)
         # pre-process the input data file
         log.info("Preprocessing the input file")
-        self.p = Preprocessor(input_file, locale=self.locale,**kwargs)
+        self.p = Preprocessor(input_file, 
+                              locale=self.locale, 
+                              **kwargs)
         self.use_tmy = self.p.use_tmy
         # create datasets
         self.A = dataset.Dataset(dataset_type='A',
@@ -619,17 +619,17 @@ class MnV(object):
             self.A.write_to_csv()
             self.D.write_to_csv()
             self.E.write_to_csv()
-        pdb.set_trace()
         if self.locale and self.use_tmy:
             log.info("Downloading TMY data for this location")
             try:
                 use_dp = self.p.outside_dp_name in self.A.feature_names
                 tmy_data = location.TMYData(
-                             lat=self.locale.lat,
-                             lon=self.locale.lon,
-                             year=None,
-                             interval=str(self.p.interval_seconds/60)+'m',
-                             use_dp=use_dp)
+                             location=self.locale,
+                             year=datetime.now().year,
+                             interp_interval=self.p.interval_seconds/60,
+                             use_dp=use_dp,
+                             save=True)
+                tmy_csv = open('./%s_clean_TMY.csv'%self.locale.geocode,'Ur')
             except e:
                 log.warn("TMY data download unsuccessful"%e)
                 self.use_tmy = False
@@ -646,7 +646,6 @@ class MnV(object):
             #                        prediction=self.m_post.error_metrics.p,
             #                        p_X=X_post,name_list=self.p.name_list,
             #                        text=str(self.m_post),fname='Post_training_report')
-            tmy_csv = open('./clean_%s.csv'%tmy_data.tmy_file, 'Ur')
             log.info("Preprocessing the TMY data file")
             self.p_tmy = Preprocessor(input_file=tmy_csv,
                                       X_standardizer=self.p.X_standardizer,
