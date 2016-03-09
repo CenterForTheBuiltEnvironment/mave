@@ -24,7 +24,10 @@ import pprint
 from datetime import datetime
 import pdb
 
-logging.basicConfig(filename='mave.log', level=logging.INFO)
+logging.basicConfig(
+    filename='mave.log',
+    level=logging.INFO,
+    format= '%(levelname)-8s %(message)s')
 log = logging.getLogger("mave")
 
 def main(input_file=None,
@@ -110,6 +113,8 @@ if __name__=='__main__':
     # log to screen also
         po = logging.StreamHandler()
         po.setLevel(logging.INFO)
+        fmt = logging.Formatter('%(levelname)-8s %(message)s')
+        po.setFormatter(fmt)
         log.addHandler(po)
     log.info("Starting mave")
     main(**args.__dict__)
