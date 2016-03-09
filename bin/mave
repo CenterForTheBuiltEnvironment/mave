@@ -26,7 +26,6 @@ import pdb
 
 logging.basicConfig(filename='mave.log', level=logging.INFO)
 log = logging.getLogger("mave")
-log.info("Starting mave")
 
 def main(input_file=None,
          config_file=None,
@@ -112,5 +111,5 @@ if __name__=='__main__':
         po = logging.StreamHandler()
         po.setLevel(logging.INFO)
         log.addHandler(po)
-    
+    log.info("Starting mave")
     main(**args.__dict__)

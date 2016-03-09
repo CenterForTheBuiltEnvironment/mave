@@ -27,7 +27,7 @@ import dataset
 import visualize
 import location
 import logging
-log = logging.getLogger("core")
+log = logging.getLogger("mave.core")
 
 class Preprocessor(object):
 
