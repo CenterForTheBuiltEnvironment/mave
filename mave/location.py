@@ -133,8 +133,10 @@ class Weather(object):
             try:
                 f = urllib2.urlopen(url)
             except:
-                raise "operation stopped", date
+                raise Exception("operation stopped", date)
         raw = f.read().splitlines()
+        if len(raw)<4: 
+            raise Exception("No weather data for this location: ", str(raw))
         self.headers = 'time,tempF,dpF,RH'
         raw_txt = np.genfromtxt(raw,
                                 delimiter=',',
@@ -179,7 +181,7 @@ class Weather(object):
             try:
                 f = urllib2.urlopen(url)
             except:
-                raise "operation stopped", date
+                raise Exception("operation stopped", date)
         raw = json.loads(f.read())
         raw = raw['history']['observations']
         raw_txt = np.vstack(map(lambda x: self.parse_obs(x),raw))
