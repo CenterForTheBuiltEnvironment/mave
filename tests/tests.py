@@ -14,9 +14,8 @@ from nose.tools import assert_equal, assert_true, assert_false, assert_almost_eq
 
 class Test(unittest.TestCase):
 
-    EPS = 0.001
     F_1 = "./mave/data/ex4_short_no_weather.csv"
-    WEATHER_PATH = "./mave/data/weather_test.csv"
+    F_2 = "./mave/data/ex4_short.csv"
 
     def test_preprocessor(self):
         # a basic test of the preprocessor object
@@ -76,6 +75,12 @@ class Test(unittest.TestCase):
         f = open(self.F_1, 'Ur')
         mnv = MnV(f)
         assert_true(mnv.DvsE.r2 > 0.8)
+
+    def test_mnv_with_weather_and_tmy(self):
+        f = open(self.F_2, 'Ur')
+        mnv = MnV(f, use_tmy=True, address='berkeley california', ts=0.5)
+        assert_true(mnv.DvsE.r2 > 0.8)
+        assert_true(mnv.GvsH.r2 > 0.6)
 
     def test_location(self):
         o = location.Location(address='berkeley california')
