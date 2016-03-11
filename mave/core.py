@@ -544,6 +544,14 @@ class ModelAggregator(object):
         rv += "\nThese error metrics represent the match between the"+ \
                " pre-retrofit data used to train the model and" + \
                " the model prediction:"
+        # check if the results meet the ASHRAE Guideline 14:2002 criteria
+        if self.error_metrics.cvrmse <= 30 \
+            and abs(self.error_metrics.nmbe) <= 10:
+            self.meets_criteria = True
+        else:
+            self.meets_criteria = False
+        rv += '\n\nThe model %s the ASHRAE Guideline 14:2002 criteria.'\
+              %(['does not meet', 'meets'][self.meets_criteria])
         rv += str(self.error_metrics)
         return rv
 

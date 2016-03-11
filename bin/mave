@@ -92,12 +92,12 @@ if __name__=='__main__':
     # output controls
     prs.add_argument("-v", "--verbose", action="store_true",
                      help="increase output verbosity")
-    prs.add_argument("-p", "--print_screen", action="store_true",
-                     help="print to screen as well as log file")
+    prs.add_argument("-p", "--print_console", action="store_false",
+                     help="- do not log to console, only to file")
     prs.add_argument("-s", "--save", action="store_true",
                      help="save model and output detailed results")
     prs.add_argument("-pl", "--plot", action="store_true",
-                     help="plot results to pdf")
+                     help="plot results to pdf-not yet implemented")
     # high level controls on total computation time
     prs.add_argument("-n", "--n_jobs", type=int,
                      help="num parallel jobs (default uses max available")
@@ -109,7 +109,7 @@ if __name__=='__main__':
     prs.add_argument("-conf", "--config_file", type=str,
                      help="use specified config file for advanced input")
     args = prs.parse_args()  
-    if args.print_screen:
+    if args.print_console:
     # log to screen also
         po = logging.StreamHandler()
         po.setLevel(logging.INFO)

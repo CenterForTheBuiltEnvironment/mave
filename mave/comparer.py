@@ -39,12 +39,6 @@ class Comparer(object):
         self.cvrmse = 100*(self.rmse)/self.b_mean
         # r2
         self.r2 = 1 - (np.sum(self.e**2) / np.sum((self.b - self.b_mean)**2))
-        # check if the results meet the ASHRAE Guideline 14:2002 criteria
-        if self.cvrmse <= 30 and abs(self.nmbe) <= 10:
-            self.meets_criteria = True
-        else:
-            self.meets_criteria = False
-
         # check for zeroes before division
         if np.count_nonzero(self.b) < self.n:
             self.some_zeros = True
@@ -70,9 +64,7 @@ class Comparer(object):
 
     def __str__(self):
         # returns a string describing how closely the arrays match each other
-        rv = '\n\nThe model %s the ASHRAE Guideline 14:2002 criteria.'\
-              %(['does not meet', 'meets'][self.meets_criteria])
-        rv +='\n\nNegative indicates prediction > baseline (i.e. savings)'
+        rv ='\n\nNegative indicates prediction > baseline (i.e. savings)'
         rv +='\nTotal Biased Error: %0.3f [in original units]'%self.tbe
         if self.some_zeros:
             rv +='\n\nNote: There are zero values in the baseline data' + \
