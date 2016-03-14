@@ -68,7 +68,7 @@ class Preprocessor(object):
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
         self.outside_dp_name = outside_dp_name
-        self.locale = locale 
+        self.locale = locale
         # process the headers
         self.headers, self.named_cols = self.process_headers()
         self.feature_names = ['Minute','Hour','DayOfWeek']
@@ -90,7 +90,7 @@ class Preprocessor(object):
                              names=True,
                              missing_values={None:['NA','N/A','?']})
         # remove rows with blank datetime entries
-        data = data[data['LocalDateTime'] != '']
+        data = data[data[datetime_column_name] != '']
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
         start_index = int(start_frac * data_L)
@@ -107,7 +107,7 @@ class Preprocessor(object):
             log.warn(("Timestamp in csv file doesn't match specified "
                       "format, %s. Using (much slower) dateutil.parser "
                       "instead, assuming dayfirst = %s and yearfirst = %s."
-                      %(self.timestamp_format,dayfirst,yearfirst))) 
+                      %(self.timestamp_format,dayfirst,yearfirst)))
             dts = map(lambda d: dateutil.parser.parse(d,
                                                       dayfirst=dayfirst,
                                                       yearfirst=yearfirst),
@@ -122,7 +122,7 @@ class Preprocessor(object):
             self.standardize_datetimes(data, dts)
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
-        
+
         if self.locale and not outside_db_name in data.dtype.names:
             log.info(("No match found for outside air temperature"
                       " name (%s) in the input file column headers: %s."
@@ -132,9 +132,9 @@ class Preprocessor(object):
                         self.locale.real_addrs)))
             try:
                 hist_weather = location.Weather(
-                                   start=dts[0], 
+                                   start=dts[0],
                                    end=dts[-1],
-                                   key=None, 
+                                   key=None,
                                    geocode=locale.geocode,
                                    interp_interval=self.interval_seconds/60,
                                    save=True)
@@ -147,7 +147,7 @@ class Preprocessor(object):
             except Exception, e:
                 log.warn(("Weather download unsuccessful. Fitting models "
                           "without weather data. TMY normalization will "
-                          "also not be performed (even if requested).")) 
+                          "also not be performed (even if requested)."))
                 self.use_tmy=False
         log.info("Creating other (non datetime related) input features")
         data, target_col_ind = self.append_input_features(data,
@@ -162,7 +162,7 @@ class Preprocessor(object):
             or (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
             raise Error(" - The datetimes in the datetimes array do not \
                 match those in the input features array")
-        self.cps = self.changepoint_feature(changepoints=changepoints, 
+        self.cps = self.changepoint_feature(changepoints=changepoints,
                                             **kwargs)
         log.info("Splitting data into pre- and post-retrofit datasets")
         self.split_dataset(test_size=test_size)
@@ -341,7 +341,7 @@ class Preprocessor(object):
             dts = dts[dts_ind] # sorts datetimes
             NN += N
         if len(missing_intervals) > 0:
-            log.info(("Missing datetime interval(s) in input file:\n%s" 
+            log.info(("Missing datetime interval(s) in input file:\n%s"
                       %pprint.pformat(missing_intervals)))
         return data, dts, median_interval, vals_per_hr
 
@@ -513,7 +513,7 @@ class ModelAggregator(object):
     def select_model(self):
         for model in self.models:
             log.info(("Best %s model R2 score: %s, with parameters: %s"
-                     %(str(model.estimator).split('(')[0], 
+                     %(str(model.estimator).split('(')[0],
                        model.best_score_,
                        model.best_params_)))
             if model.best_score_ > self.best_score:
@@ -572,8 +572,8 @@ class MnV(object):
             log.info("Location identified as: %s"%self.locale.real_addrs)
         # pre-process the input data file
         log.info("Preprocessing the input file")
-        self.p = Preprocessor(input_file, 
-                              locale=self.locale, 
+        self.p = Preprocessor(input_file,
+                              locale=self.locale,
                               **kwargs)
         self.use_tmy = self.p.use_tmy
         # create datasets
@@ -593,7 +593,7 @@ class MnV(object):
                                  feature_names=self.p.feature_names)
         self.m_pre = ModelAggregator(dataset=self.A)
         folds = cross_validation.KFold(len(self.A.X_s),
-                                       n_folds=k, 
+                                       n_folds=k,
                                        shuffle=True)
         log.info("Fitting models to the preretrofit data")
         self.m_pre.train_all(k = folds, **kwargs)
@@ -641,7 +641,7 @@ class MnV(object):
             # build a second model based on the post-retrofit data
             self.m_post = ModelAggregator(dataset=self.D)
             folds = cross_validation.KFold(len(self.D.X_s),
-                                           n_folds=k, 
+                                           n_folds=k,
                                            shuffle=True)
             log.info("Fitting models to the postretrofit data")
             self.m_post.train_all(k = folds, **kwargs)
