@@ -98,6 +98,8 @@ class Preprocessor(object):
         start_index = int(start_frac * data_L)
         end_index = int(end_frac * data_L)
         data = data[ start_index : end_index ]
+        # convert data types
+        dts = date[datetime_column_name]
         dtypes = data.dtype.descr
         for i in range(len(dtypes)):
             dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
@@ -110,7 +112,7 @@ class Preprocessor(object):
 
         if self.locale and not outside_db_name in data.dtype.names:
             log.info(("No match found for outside air temperature"
-                      " name (%s) in the input file column headers: %s."
+                      " name (%s) in the input file column headers: e%s."
                       " Downloading for given location: %s"
                       %(outside_db_name,
                         data.dtype.names,
