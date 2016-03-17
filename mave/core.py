@@ -16,6 +16,7 @@ import os
 import cPickle as pickle
 import dateutil.parser
 import numpy as np
+import pandas as pd
 import pprint
 from math import sqrt
 from datetime import datetime, timedelta
@@ -82,39 +83,23 @@ class Preprocessor(object):
                 self.holidays = self.holidays.union(holidays[key])
 
         # read in the input data
-        data = np.genfromtxt(self.input_file,
-                             delimiter=',',
-                             dtype=None,
-                             skip_header=len(self.headers)-1,
-                             usecols=self.named_cols,
-                             names=True,
-                             missing_values={None:['NA','N/A','?']})
-        # remove rows with blank datetime entries
-        data = data[data[datetime_column_name] != '']
+        data = pd.read_csv(self.input_file,
+                           skiprows = len(self.headers) - 1,
+                           usecols = self.named_cols,
+                           na_values = '?',
+                           skip_blank_lines = True,
+                           parse_dates = [self.datetime_column_name],
+                           infer_datetime_format = True,
+                           skipinitialspace = True,
+                           error_bad_lines = False)
+        data = data.to_records()
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
         start_index = int(start_frac * data_L)
         end_index = int(end_frac * data_L)
         data = data[ start_index : end_index ]
-        # parse datetimes
-        dcn = self.datetime_column_name
-        log.info("Converting timestamps into datetimes")
-        try:
-            dts = map(lambda d: datetime.strptime(d,
-                                                  self.timestamp_format),
-                                                   data[dcn])
-        except ValueError:
-            log.warn(("Timestamp in csv file doesn't match specified "
-                      "format, %s. Using (much slower) dateutil.parser "
-                      "instead, assuming dayfirst = %s and yearfirst = %s."
-                      %(self.timestamp_format,dayfirst,yearfirst)))
-            dts = map(lambda d: dateutil.parser.parse(d,
-                                                      dayfirst=dayfirst,
-                                                      yearfirst=yearfirst),
-                                                       data[dcn])
         dtypes = data.dtype.descr
-        dtypes[0] = dtypes[0][0], '|S20' # force 20 chars for datetimes
-        for i in range(1,len(dtypes)):
+        for i in range(len(dtypes)):
             dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
         data = data.astype(dtypes)
         log.info("Creating input features from datetimes")
