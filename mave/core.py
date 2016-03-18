@@ -92,17 +92,18 @@ class Preprocessor(object):
                            infer_datetime_format = True,
                            skipinitialspace = True,
                            error_bad_lines = False)
-        data = data.to_records()
+        data = data.to_records(index = False)
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
         start_index = int(start_frac * data_L)
         end_index = int(end_frac * data_L)
         data = data[ start_index : end_index ]
         # convert data types
-        dts = date[datetime_column_name]
+        dts = data[datetime_column_name]
         dtypes = data.dtype.descr
         for i in range(len(dtypes)):
-            dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
+            if dtypes[i][0] != datetime_column_name:
+                dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
         data = data.astype(dtypes)
         log.info("Creating input features from datetimes")
         data, dts, self.interval_seconds, self.vals_per_hr = \
@@ -288,6 +289,7 @@ class Preprocessor(object):
 
     def standardize_datetimes(self, data, dts):
         # calculate the interval between datetimes
+        dts = [datetime.utcfromtimestamp(dt.astype('uint64') / 1e9) for dt in dts]
         intervals = [int((dts[i]-dts[i-1]).seconds) for i in range(1, len(dts))]
         median_interval = int(np.median(intervals))
         vals_per_hr = 3600 / median_interval
