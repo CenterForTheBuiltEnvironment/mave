@@ -103,9 +103,14 @@ class Preprocessor(object):
         # convert data types
         dts = data[datetime_column_name]
         dtypes = data.dtype.descr
+        columns_names = list(data.dtype.names)
         for i in range(len(dtypes)):
             if dtypes[i][0] != datetime_column_name:
+                if dtypes[i][1] == '|O':
+                    columns_names.remove(dtypes[i][0])
                 dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
+        dtypes = [dtype for dtype in dtypes if dtype[0] in columns_names]
+        data = data[columns_names]
         data = data.astype(dtypes)
         log.info("Creating input features from datetimes")
         data, dts, self.interval_seconds, self.vals_per_hr = \
