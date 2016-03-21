@@ -92,6 +92,8 @@ class Preprocessor(object):
                            infer_datetime_format = True,
                            skipinitialspace = True,
                            error_bad_lines = False)
+        # drop columns with more than 50% nans
+        data = data.dropna(axis = 'columns', thresh = int(0.5 * len(data)))
         data = data.to_records(index = False)
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
@@ -141,7 +143,8 @@ class Preprocessor(object):
         data, target_col_ind = self.append_input_features(data,
                                                           d,
                                                           outside_db_name,
-                                                          target_name)
+                                                          target_name,
+                                                          datetime_column_name)
         log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
@@ -211,9 +214,11 @@ class Preprocessor(object):
                 datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
-    def append_input_features(self, data, d0, outside_db_name,\
-                              target_name, previous_data_points=2):
-        column_names = data.dtype.names[1:]
+    def append_input_features(self, data, d0, outside_db_name,
+                              target_name, datetime_column_name,
+                              previous_data_points=2):
+        column_names = [name for name in data.dtype.names \
+            if name != datetime_column_name]
         d = d0
         for s in column_names:
             if s == outside_db_name:
@@ -250,6 +255,7 @@ class Preprocessor(object):
                 d = np.column_stack( (d, data[s]) )
         # add the target data
         split = d.shape[1]
+        print(target_name)
         if target_name in column_names:
             d = np.column_stack( (d, data[target_name]) )
         return d, split
@@ -399,7 +405,6 @@ class Preprocessor(object):
             if self.cps is not None:
                 pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
                 post_inds = np.where(self.cps == self.POST_DATA_TAG)
-
                 self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
                 self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
                 self.dts_pre, self.dts_post = \
