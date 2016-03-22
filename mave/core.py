@@ -16,6 +16,7 @@ import os
 import cPickle as pickle
 import dateutil.parser
 import numpy as np
+import pandas as pd
 import pprint
 from math import sqrt
 from datetime import datetime, timedelta
@@ -82,40 +83,34 @@ class Preprocessor(object):
                 self.holidays = self.holidays.union(holidays[key])
 
         # read in the input data
-        data = np.genfromtxt(self.input_file,
-                             delimiter=',',
-                             dtype=None,
-                             skip_header=len(self.headers)-1,
-                             usecols=self.named_cols,
-                             names=True,
-                             missing_values={None:['NA','N/A','?']})
-        # remove rows with blank datetime entries
-        data = data[data[datetime_column_name] != '']
+        data = pd.read_csv(self.input_file,
+                           skiprows = len(self.headers) - 1,
+                           usecols = self.named_cols,
+                           na_values = '?',
+                           skip_blank_lines = True,
+                           parse_dates = [self.datetime_column_name],
+                           infer_datetime_format = True,
+                           skipinitialspace = True,
+                           error_bad_lines = False)
+        # drop columns with more than 50% nans
+        data = data.dropna(axis = 'columns', thresh = int(0.5 * len(data)))
+        data = data.to_records(index = False)
         # shrink the input data by start_frac and end_frac
         data_L = len(data)
         start_index = int(start_frac * data_L)
         end_index = int(end_frac * data_L)
         data = data[ start_index : end_index ]
-        # parse datetimes
-        dcn = self.datetime_column_name
-        log.info("Converting timestamps into datetimes")
-        try:
-            dts = map(lambda d: datetime.strptime(d,
-                                                  self.timestamp_format),
-                                                   data[dcn])
-        except ValueError:
-            log.warn(("Timestamp in csv file doesn't match specified "
-                      "format, %s. Using (much slower) dateutil.parser "
-                      "instead, assuming dayfirst = %s and yearfirst = %s."
-                      %(self.timestamp_format,dayfirst,yearfirst)))
-            dts = map(lambda d: dateutil.parser.parse(d,
-                                                      dayfirst=dayfirst,
-                                                      yearfirst=yearfirst),
-                                                       data[dcn])
+        # convert data types
+        dts = data[datetime_column_name]
         dtypes = data.dtype.descr
-        dtypes[0] = dtypes[0][0], '|S20' # force 20 chars for datetimes
-        for i in range(1,len(dtypes)):
-            dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
+        columns_names = list(data.dtype.names)
+        for i in range(len(dtypes)):
+            if dtypes[i][0] != datetime_column_name:
+                if dtypes[i][1] == '|O':
+                    columns_names.remove(dtypes[i][0])
+                dtypes[i] = dtypes[i][0], 'f8' # parse all other data as float
+        dtypes = [dtype for dtype in dtypes if dtype[0] in columns_names]
+        data = data[columns_names]
         data = data.astype(dtypes)
         log.info("Creating input features from datetimes")
         data, dts, self.interval_seconds, self.vals_per_hr = \
@@ -125,7 +120,7 @@ class Preprocessor(object):
 
         if self.locale and not outside_db_name in data.dtype.names:
             log.info(("No match found for outside air temperature"
-                      " name (%s) in the input file column headers: %s."
+                      " name (%s) in the input file column headers: e%s."
                       " Downloading for given location: %s"
                       %(outside_db_name,
                         data.dtype.names,
@@ -153,7 +148,8 @@ class Preprocessor(object):
         data, target_col_ind = self.append_input_features(data,
                                                           d,
                                                           outside_db_name,
-                                                          target_name)
+                                                          target_name,
+                                                          datetime_column_name)
         log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
@@ -223,9 +219,11 @@ class Preprocessor(object):
                 datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
-    def append_input_features(self, data, d0, outside_db_name,\
-                              target_name, previous_data_points=2):
-        column_names = data.dtype.names[1:]
+    def append_input_features(self, data, d0, outside_db_name,
+                              target_name, datetime_column_name,
+                              previous_data_points=2):
+        column_names = [name for name in data.dtype.names \
+            if name != datetime_column_name]
         d = d0
         for s in column_names:
             if s == outside_db_name:
@@ -262,6 +260,7 @@ class Preprocessor(object):
                 d = np.column_stack( (d, data[s]) )
         # add the target data
         split = d.shape[1]
+        print(target_name)
         if target_name in column_names:
             d = np.column_stack( (d, data[target_name]) )
         return d, split
@@ -301,6 +300,7 @@ class Preprocessor(object):
 
     def standardize_datetimes(self, data, dts):
         # calculate the interval between datetimes
+        dts = [datetime.utcfromtimestamp(dt.astype('uint64') / 1e9) for dt in dts]
         intervals = [int((dts[i]-dts[i-1]).seconds) for i in range(1, len(dts))]
         median_interval = int(np.median(intervals))
         vals_per_hr = 3600 / median_interval
@@ -410,7 +410,6 @@ class Preprocessor(object):
             if self.cps is not None:
                 pre_inds = np.where(self.cps == self.PRE_DATA_TAG)
                 post_inds = np.where(self.cps == self.POST_DATA_TAG)
-
                 self.X_pre_s, self.X_post_s = self.X_s[pre_inds],self.X_s[post_inds]
                 self.y_pre_s, self.y_post_s = self.y_s[pre_inds],self.y_s[post_inds]
                 self.dts_pre, self.dts_post = \

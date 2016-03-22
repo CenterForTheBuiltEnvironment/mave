@@ -74,7 +74,8 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires = [
-        'numpy>=1.9.0', 
+        'pandas>=0.18.0',
+        'numpy>=1.9.0',
         'python-dateutil>=2.4',
         'scikit-learn>=0.16.1',
         'scipy>=0.15.0'
