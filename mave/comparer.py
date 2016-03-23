@@ -8,8 +8,6 @@ and baseline data must be the same length/shape
 """
 import math, os, pdb
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
 
 class Comparer(object):
     def __init__(self, comparison, baseline):
