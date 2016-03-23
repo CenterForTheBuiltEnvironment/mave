@@ -31,9 +31,6 @@ def main(address=None,
          interval=None,
          **kwargs):
     l = mave.location.Location(address)
-    log.info(("Identified address as %s, at lat: %s long: %s)"
-             %(l.real_addrs,l.lat,l.lon)))
-    log.info("Nearest geocode (weather station) is: %s"%l.geocode)
     if start is not None and end is not None:
         s = dateutil.parser.parse(start)
         e = dateutil.parser.parse(end)
@@ -47,7 +44,6 @@ def main(address=None,
     if interval is None:
         interval = 60
         log.info('No interval provided, using default: %i minutes'%interval)
-    log.info('Downloading weather, which may take several minutes...')
     hist_weather = mave.location.Weather(start=s,
                                          end=e,
                                          key=None,

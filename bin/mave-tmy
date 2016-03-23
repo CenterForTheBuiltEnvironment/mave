@@ -29,22 +29,14 @@ def main(address=None,
          interval=None,
          **kwargs):
     l = mave.location.Location(address)
-    log.info(("Identified address as %s, at lat: %s long: %s)"
-             %(l.real_addrs,l.lat,l.lon)))
-    log.info("Nearest geocode (weather station) is: %s"%l.geocode)
     if interval is None:
         interval = 60
         log.info('No interval provided, using default: %i minutes'%interval)
-    log.info('Downloading TMY data, which may take several minutes...')
     tmy = mave.location.TMYData(location=l,
                                 year=year,
                                 interp_interval=interval,
                                 use_dp=True,
                                 save=True)               
-    log.info(('Original TMY data saved to %s_TMY.epw'
-             %l.geocode))
-    log.info(('Interpolated, cleaned TMY data saved to %s'
-             %tmy.tmy_file))
     
 if __name__=='__main__': 
     # parse args

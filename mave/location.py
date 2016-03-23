@@ -20,12 +20,17 @@ import datetime, time
 import dateutil.parser as dparser 
 import pdb 
 import sys 
-
+import logging
+log = logging.getLogger("mave.location")
 
 class Location(object):
     def __init__(self, address, **kwargs):
+        log.info("Assessing location string: %s"%address)
         self.lat, self.lon, self.real_addrs = self.get_latlon(address)
+        log.info("Location identified as: %s"%self.real_addrs)
         self.geocode = self.get_geocode(self.lat, self.lon)
+        log.info(("Geocode (nearest weather station) identified as: %s"
+                  %self.geocode))
 
     def get_latlon(self,address):
         g_key = 'AIzaSyBHvrK5BitVyEzcTI72lObBUnqUR9L6O_E'
@@ -71,9 +76,15 @@ class Weather(object):
                  save=None,
                  **kwargs):
         self.start=start; self.end=end; self.interp_interval=interp_interval
+        log.info(("Downloading weather data for this geocode: %s. "
+                  "This may take several minutes depending of the speed "
+                  "of your internet connection."
+                  %geocode))
         if start > end:
-            error_msg =  "start time has to before the end time"
-            sys.exit(error_msg)
+            mave.error(("Start time (%s) must be before end time (%s)"
+                        %(start,end)))
+            raise Exception(("Start time (%s) must be before end time (%s)"
+                            %(start,end)))
         else:
             dtype='datetime64[%sm]'%(interp_interval)
             self.target_dts = np.arange(
@@ -129,6 +140,7 @@ class Weather(object):
               '/%s/%s/%s/%s/DailyHistory.html?format=1')%\
               (geocode,date.year,date.month,date.day)
         try:
+            log.info("Downloading weather data for: %s"%date)
             f = urllib2.urlopen(url)
         except:
             time.sleep(30)
@@ -177,6 +189,7 @@ class Weather(object):
         url = 'http://api.wunderground.com/api/%s/history_%s%s%s/q/%s.json'\
                                %(key,date.year,month,day,geocode)
         try:
+            log.info("Downloading weather data for: %s"%date)
             f = urllib2.urlopen(url)
         except:
             time.sleep(30)
@@ -215,6 +228,10 @@ class TMYData(object):
                  **kwargs):
         self.use_dp = use_dp
         self.location = location
+        log.info(("Downloading TMY data nearest this lat/long: %s , %s. "
+                  "This may take several minutes depending of the speed "
+                  "of your internet connection."
+                 %(self.location.lat,self.location.lon)))
         self.tmy_file, self.cleaned_tmy = self.getTMY(self.location.lat, 
                                                       self.location.lon, 
                                                       year, 
@@ -275,14 +292,20 @@ class TMYData(object):
             column_names = ['LocalDateTime','OutsideDryBulbTemperature']
             cleaned_tmy = np.column_stack((target_dts,interp_db))   
         cleaned_tmy = np.vstack((column_names,cleaned_tmy))
-        headers = 'This CSV file is a cleaned version of the TMY data file.',\
-                 'The data were generated from file'+str(tmy_file)
         if save:
-            np.savetxt('%s_clean_TMY.csv'%(self.location.geocode),
+            pdb.set_trace()
+            log.info(('Original TMY data saved to %s'
+                     %tmy_file))
+            log.info(('Interpolated selected TMY data saved to %s_TMY.csv'
+                     %self.location.geocode))
+            np.savetxt('%s_TMY.csv'%(self.location.geocode),
                        cleaned_tmy,
                        delimiter=',',
                        fmt='%s', 
                        comments='')
+        else:
+            #remove unzipped file
+            os.remove(tmy_file)
         return tmy_file, cleaned_tmy
 
 if __name__ == "__main__":
