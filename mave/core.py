@@ -156,8 +156,8 @@ class Preprocessor(object):
         # ensure that the datetimes match the input features
         if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() \
             or (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
-            raise Error(" - The datetimes in the datetimes array do not \
-                match those in the input features array")
+            raise Exception(("The datetimes in the datetimes array do not"
+                             " match those in the input features array"))
         self.cps = self.changepoint_feature(changepoints=changepoints,
                                             **kwargs)
         log.info("Splitting data into pre- and post-retrofit datasets")
@@ -168,6 +168,7 @@ class Preprocessor(object):
         # the headers and the column names
         reader = csv.reader(self.input_file, delimiter=',')
         headers = []
+        named_cols = None
         for _ in range(100):
             row = reader.next()
             headers.append(row)
@@ -176,6 +177,13 @@ class Preprocessor(object):
                     named_cols = tuple(np.where(np.array(row) !='')[0])
                     break
         self.input_file.seek(0) # rewind the file
+        if named_cols is None:
+            log.error(("Datetime column name %s not found in the input file"
+                       ". Please either edit the input file or the config"
+                       " file to correctly identify the datetime column" 
+                       %self.datetime_column_name))
+            raise Exception("Datetime column name not found in input file",
+                            self.datetime_column_name)
         return headers, named_cols
 
     def clean_data(self,
