@@ -51,12 +51,14 @@ class Preprocessor(object):
                  dayfirst=False,
                  yearfirst=False,
                  locale=None,
-                 outside_db_name = 'OutsideDryBulbTemperature',
-                 outside_dp_name = 'OutsideDewPointTemperature',
-                 target_name = 'EnergyConsumption',
+                 outside_db_column_name = 'OutsideDryBulbTemperature',
+                 outside_dp_column_name = 'OutsideDewPointTemperature',
+                 target_column_name = 'EnergyConsumption',
                  remove_outliers = 'SingleValue',
                  X_standardizer = None,
                  previous_data_points = 2,
+                 column_names=['LocalDateTime','EnergyConsumption'],
+                 n_headers=3,
                  **kwargs):
         log.info("Preprocessing started")
         self.timestamp_format = timestamp_format
@@ -68,10 +70,8 @@ class Preprocessor(object):
         self.input_file = input_file
         self.previous_data_points = previous_data_points
         self.X_standardizer = X_standardizer
-        self.outside_dp_name = outside_dp_name
+        self.outside_dp_column_name = outside_dp_column_name
         self.locale = locale
-        # process the headers
-        self.headers, self.named_cols = self.process_headers()
         self.feature_names = ['Minute','Hour','DayOfWeek']
         if use_month:
             self.feature_names.append('Month')
@@ -81,11 +81,10 @@ class Preprocessor(object):
             self.feature_names.append('Holiday')
             for key in self.holiday_keys:
                 self.holidays = self.holidays.union(holidays[key])
-
         # read in the input data
         data = pd.read_csv(self.input_file,
-                           skiprows = len(self.headers) - 1,
-                           usecols = self.named_cols,
+                           skiprows = n_headers,
+                           usecols = column_names,
                            na_values = '?',
                            skip_blank_lines = True,
                            parse_dates = [self.datetime_column_name],
@@ -118,11 +117,11 @@ class Preprocessor(object):
         vectorized_process_datetime = np.vectorize(self.process_datetime)
         d = np.column_stack(vectorized_process_datetime(dts))
 
-        if self.locale and not outside_db_name in data.dtype.names:
+        if self.locale and not outside_db_column_name in data.dtype.names:
             log.info(("No match found for outside air temperature"
                       " name (%s) in the input file column headers: e%s."
                       " Downloading for given location: %s"
-                      %(outside_db_name,
+                      %(outside_db_column_name,
                         data.dtype.names,
                         self.locale.real_addrs)))
             try:
@@ -134,9 +133,9 @@ class Preprocessor(object):
                                    interp_interval=self.interval_seconds/60,
                                    save=True)
                 outside_db = np.array(hist_weather.interp_data[0],\
-                                      dtype=[(outside_db_name,'f8')])
+                                      dtype=[(outside_db_column_name,'f8')])
                 outside_dp = np.array(hist_weather.interp_data[1],\
-                                      dtype=[(outside_dp_name,'f8')])
+                                      dtype=[(outside_dp_column_name,'f8')])
                 data=self.join_recarrays([data, outside_db, outside_dp])
                 self.use_tmy=True
             except Exception, e:
@@ -147,8 +146,8 @@ class Preprocessor(object):
         log.info("Creating other (non datetime related) input features")
         data, target_col_ind = self.append_input_features(data,
                                                           d,
-                                                          outside_db_name,
-                                                          target_name,
+                                                          outside_db_column_name,
+                                                          target_column_name,
                                                           datetime_column_name)
         log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
@@ -162,29 +161,6 @@ class Preprocessor(object):
                                             **kwargs)
         log.info("Splitting data into pre- and post-retrofit datasets")
         self.split_dataset(test_size=test_size)
-
-    def process_headers(self):
-        # reads up to the first 100 lines of self.input_file and returns
-        # the headers and the column names
-        reader = csv.reader(self.input_file, delimiter=',')
-        headers = []
-        named_cols = None
-        for _ in range(100):
-            row = reader.next()
-            headers.append(row)
-            if len(row)>0:
-                if self.datetime_column_name in row:
-                    named_cols = tuple(np.where(np.array(row) !='')[0])
-                    break
-        self.input_file.seek(0) # rewind the file
-        if named_cols is None:
-            log.error(("Datetime column name %s not found in the input file"
-                       ". Please either edit the input file or the config"
-                       " file to correctly identify the datetime column" 
-                       %self.datetime_column_name))
-            raise Exception("Datetime column name not found in input file",
-                            self.datetime_column_name)
-        return headers, named_cols
 
     def clean_data(self,
                    data,
@@ -227,14 +203,14 @@ class Preprocessor(object):
                 datetimes = datetimes[keep_inds]
         return X, y, datetimes
 
-    def append_input_features(self, data, d0, outside_db_name,
-                              target_name, datetime_column_name,
+    def append_input_features(self, data, d0, outside_db_column_name,
+                              target_column_name, datetime_column_name,
                               previous_data_points=2):
         column_names = [name for name in data.dtype.names \
             if name != datetime_column_name]
         d = d0
         for s in column_names:
-            if s == outside_db_name:
+            if s == outside_db_column_name:
                 if np.median(data[s]) > 32.0:
                     # almost certainly in crazy ancient units [F]
                     # unless the building is in Antartica
@@ -261,16 +237,16 @@ class Preprocessor(object):
                                                  24*self.vals_per_hr+n_vals ]
                         d = np.column_stack( (d, past_data) )
                         self.feature_names.append(str(s)+'_-'+ str(past_hours))
-            elif not s == target_name:
+            elif not s == target_column_name:
                 # just add the column as an input feature
                 # without historical data
                 self.feature_names.append(str(s))
                 d = np.column_stack( (d, data[s]) )
         # add the target data
         split = d.shape[1]
-        print(target_name)
-        if target_name in column_names:
-            d = np.column_stack( (d, data[target_name]) )
+        print(target_column_name)
+        if target_column_name in column_names:
+            d = np.column_stack( (d, data[target_column_name]) )
         return d, split
 
     def is_single_value_outlier(self, y, med_diff_multiple=10):
@@ -569,18 +545,56 @@ class MnV(object):
                  address=None,
                  plot=False,
                  k=10,
+                 datetime_column_name='LocalDateTime',
+                 target_column_name = 'EnergyConsumption',
+                 ignored_column_names = [],
                  **kwargs):
+        # locate the address using Google Maps API
         if address is None or address == '':
             self.locale = None
             log.info("No location provided")
         else:
             self.locale = location.Location(address)
-            log.info("Assessing location string: %s"%address)
-            log.info("Location identified as: %s"%self.locale.real_addrs)
+
+        # read up to the first 100 lines of the input_file to check columns 
+        reader = csv.reader(input_file, delimiter=',')
+        headers = []
+        cols = None
+        for _ in range(100):
+            row = reader.next()
+            headers.append(row)
+            if len(row)>0:
+                if datetime_column_name in row:
+                    cols = [c for c in row \
+                            if not c in ignored_column_names \
+                            and c != '']
+                    log.info(("Ignoring the following columns named:%s"
+                              %ignored_column_names))
+                    break
+        input_file.seek(0) # rewind the file
+        if cols is None:
+            log.error(("Datetime column name %s not found in the input file"
+                       ". Please either edit the input file or the config"
+                       " file to correctly identify the datetime column" 
+                       %datetime_column_name))
+            raise Exception("Datetime column name not found in input file",
+                            datetime_column_name)
+        if not target_column_name in cols:
+            log.error(("Target column name %s not found in the input file"
+                       ". Please either edit the input file or the config"
+                       " file to correctly identify the target column" 
+                       %target_column_name))
+            raise Exception("Target column name not found in input file",
+                            target_column_name)
+        n_headers = len(headers)-1
         # pre-process the input data file
         log.info("Preprocessing the input file")
         self.p = Preprocessor(input_file,
                               locale=self.locale,
+                              target_column_name=target_column_name,
+                              datetime_column_name=datetime_column_name,
+                              n_headers=n_headers,
+                              column_names=cols,
                               **kwargs)
         self.use_tmy = self.p.use_tmy
         # create datasets
@@ -604,24 +618,12 @@ class MnV(object):
                                        shuffle=True)
         log.info("Fitting models to the preretrofit data")
         self.m_pre.train_all(k = folds, **kwargs)
-        #if plot:
-        #    visualize.Visualize(baseline=self.m.error_metrics.b,
-        #                        prediction=self.m.error_metrics.p,
-        #                        p_X=X_pre,name_list=self.p.feature_names,
-        #                        text=str(self.m),fname='Pre_training_report')
-
         # single model (no weather lookup, no tmy normalization)
         # evaluate the output of the model against the post-retrofit data
         self.E = dataset.Dataset(dataset_type='E',
                                  base_dataset= self.D,
                                  y_s=self.m_pre.best_model.predict(self.D.X_s),)
         self.DvsE = comparer.Comparer(comparison=self.E, baseline=self.D)
-        #if plot:
-        #    visualize.Visualize(baseline=measured_post_retrofit,
-        #                        prediction=predicted_post_retrofit,
-        #                        p_X=X_post, name_list=self.p.name_list,
-        #                        text=str(self.error_metrics),
-        #                        fname='Estimated_savings_report')
         if save:
             pickle.Pickler(open('pre_model.pkl', 'wb'), -1).dump(
                                        self.m_pre.best_model.best_estimator_)
@@ -631,16 +633,15 @@ class MnV(object):
             self.D.write_to_csv()
             self.E.write_to_csv()
         if self.locale and self.use_tmy:
-            log.info("Downloading TMY data for this location")
             try:
-                use_dp = self.p.outside_dp_name in self.A.feature_names
+                use_dp = self.p.outside_dp_column_name in self.A.feature_names
                 tmy_data = location.TMYData(
                              location=self.locale,
                              year=datetime.now().year,
                              interp_interval=self.p.interval_seconds/60,
                              use_dp=use_dp,
                              save=True)
-                tmy_csv = open('./%s_clean_TMY.csv'%self.locale.geocode,'Ur')
+                tmy_csv = open('./%s_TMY.csv'%self.locale.geocode,'Ur')
             except e:
                 log.warn("TMY data download unsuccessful"%e)
                 self.use_tmy = False
@@ -652,14 +653,12 @@ class MnV(object):
                                            shuffle=True)
             log.info("Fitting models to the postretrofit data")
             self.m_post.train_all(k = folds, **kwargs)
-            #if plot:
-            #    visualize.Visualize(baseline=self.m_post.error_metrics.b,
-            #                        prediction=self.m_post.error_metrics.p,
-            #                        p_X=X_post,name_list=self.p.name_list,
-            #                        text=str(self.m_post),fname='Post_training_report')
             log.info("Preprocessing the TMY data file")
+            tmy_cols = [c for c in cols if c != target_column_name]
             self.p_tmy = Preprocessor(input_file=tmy_csv,
                                       X_standardizer=self.p.X_standardizer,
+                                      n_headers=0,
+                                      column_names=tmy_cols,
                                       **kwargs)
             self.G = dataset.Dataset(
                          dataset_type='G',
@@ -674,13 +673,6 @@ class MnV(object):
                          base_dataset=self.G,
                          y_s=self.m_post.best_model.predict(self.p_tmy.X_s))
             self.GvsH = comparer.Comparer(comparison=self.H, baseline=self.G)
-            #if plot:
-            #    visualize.Visualize(baseline=pre_model_tmy,
-            #                        prediction=post_model_tmy,
-            #                        p_X=self.p_tmy.X,
-            #                        name_list=self.p_tmy.name_list,
-            #                        text=str(self.error_metrics_tmy),
-            #                        fname='Normalized_savings_report')
             if save:
                 pickle.Pickler(open('post_model.pkl', 'wb'), -1).dump(
                                        self.m_post.best_model.best_estimator_)
@@ -688,6 +680,7 @@ class MnV(object):
                                        self.GvsH)
                 self.G.write_to_csv()
                 self.H.write_to_csv()
+
 
     def __str__(self):
         rv = "\n\n===== Pre-retrofit model training summary ====="
