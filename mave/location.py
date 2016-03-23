@@ -100,7 +100,7 @@ class Weather(object):
         self.target_unix = unix_vec(self.target_dts)
         self.n_days = (end - start).days + 1
         self.count_days = 0 
-        log.info(("Downloading weather data for %s from %s to %s"
+        log.info(("Downloading weather data for %s days from %s to %s"
                   %(self.n_days,start,end)))
         if key == None:
             self.timestamps, self.unix, self.data = \
