@@ -98,6 +98,10 @@ class Weather(object):
                                         self.target_dts[-1]+ interval)
         unix_vec = np.vectorize(self.str_to_unix_api)
         self.target_unix = unix_vec(self.target_dts)
+        self.n_days = (end - start).days + 1
+        self.count_days = 0 
+        log.info(("Downloading weather data for %s from %s to %s"
+                  %(self.n_days,start,end)))
         if key == None:
             self.timestamps, self.unix, self.data = \
                                               self.get_raw(start, end, geocode)
@@ -139,8 +143,11 @@ class Weather(object):
         url = ('http://www.wunderground.com/history/airport'
               '/%s/%s/%s/%s/DailyHistory.html?format=1')%\
               (geocode,date.year,date.month,date.day)
+        self.count_days += 1
+        percent_progress = 100*float(self.count_days)/float(self.n_days) 
         try:
-            log.info("Downloading weather data for: %s"%date)
+            log.info(("Downloading weatherfor: %s, approx %s %% complete"
+                      %(date,percent_progress)))
             f = urllib2.urlopen(url)
         except:
             time.sleep(30)
@@ -188,8 +195,11 @@ class Weather(object):
         day = date.strftime('%d')
         url = 'http://api.wunderground.com/api/%s/history_%s%s%s/q/%s.json'\
                                %(key,date.year,month,day,geocode)
+        self.count_days += 1
+        percent_progress = 100*float(self.count_days)/float(self.n_days) 
         try:
-            log.info("Downloading weather data for: %s"%date)
+            log.info(("Downloading weatherfor: %s, approx %s %% complete"
+                      %(date,percent_progress)))
             f = urllib2.urlopen(url)
         except:
             time.sleep(30)
@@ -293,7 +303,6 @@ class TMYData(object):
             cleaned_tmy = np.column_stack((target_dts,interp_db))   
         cleaned_tmy = np.vstack((column_names,cleaned_tmy))
         if save:
-            pdb.set_trace()
             log.info(('Original TMY data saved to %s'
                      %tmy_file))
             log.info(('Interpolated selected TMY data saved to %s_TMY.csv'
