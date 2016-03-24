@@ -146,7 +146,7 @@ class Weather(object):
         self.count_days += 1
         percent_progress = 100*float(self.count_days)/float(self.n_days) 
         try:
-            log.info(("Downloading weatherfor: %s, approx %s %% complete"
+            log.info(("Downloading weather for: %s, approx %0.3f %% complete"
                       %(date,percent_progress)))
             f = urllib2.urlopen(url)
         except:

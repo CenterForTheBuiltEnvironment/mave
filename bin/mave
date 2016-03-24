@@ -13,7 +13,7 @@ with predictions using the model.
 
 import pdb
 import io
-import os.path
+import os
 import sys
 import mave.core
 import argparse
@@ -30,12 +30,12 @@ logging.basicConfig(
     format= '%(levelname)-8s %(message)s')
 log = logging.getLogger("mave")
 
-def main(input_file=None,
+def main(input_file_path=None,
          config_file=None,
          changepoint=None,
          **kwargs):
     log.info(("Assessing input file %s using mave version %s"
-              %(args.input_file,mave.__version__)))
+              %(args.input_file_path,mave.__version__)))
     kws ={}
     config = ConfigParser.ConfigParser(allow_no_value=True)
     if config_file: 
@@ -73,16 +73,15 @@ def main(input_file=None,
                                 mave.core.Preprocessor.POST_DATA_TAG)]
     log.info('Configuration used for this analysis:\n%s'%\
                 pprint.pformat(kws))
-    f = open(input_file, 'Ur')
-    mnv = mave.core.MnV(input_file=f, **kws)
+    mnv = mave.core.MnV(os.path.abspath(input_file_path), **kws)
     log.info("Outputting analysis results:\n %s"%(mnv))
 
 if __name__=='__main__': 
     # parse args
     prs = argparse.ArgumentParser()
     # required argument
-    prs.add_argument("input_file", 
-                     help="filename for input data")
+    prs.add_argument("input_file_path", 
+                     help="filepath to input data file")
     # identification of the post-retrofit period
     prs.add_argument("-cp", "--changepoint", 
                      help="datetime at which postretrofit period begins")

@@ -72,13 +72,11 @@ class Test(unittest.TestCase):
         f.close()
 
     def test_mnv(self):
-        f = open(self.F_1, 'Ur')
-        mnv = MnV(f)
+        mnv = MnV(self.F_1)
         assert_true(mnv.DvsE.r2 > 0.8)
 
     def test_mnv_with_weather_and_tmy(self):
-        f = open(self.F_2, 'Ur')
-        mnv = MnV(f, use_tmy=True, address='berkeley california', ts=0.5)
+        mnv = MnV(self.F_2, use_tmy=True, address='berkeley, ca', ts=0.5)
         assert_true(mnv.DvsE.r2 > 0.8)
         assert_true(mnv.GvsH is not None)
 

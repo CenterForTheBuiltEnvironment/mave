@@ -2,14 +2,14 @@
 This class is a wrapper for all of data required to train or evaluate a model
 
 the dataset_type field is to help standardize notation of different datasets:
-       'A':'Measured preretrofit data',
-       'B':'Preretrofit prediction - preretrofit model',
-       'C':'Preretrofit prediction - postretrofit model',
-       'D':'Measured postretrofit data',
-       'E':'Postretrofit prediction - preretrofit model',
-       'F':'Postretrofit prediction - postretrofit model',
-       'G':'TMY prediction: preretrofit model',
-       'H':'TMY prediction: postretrofit model'}
+       'A':'measured pre-retrofit data',
+       'B':'pre-retrofit prediction with pre-retrofit model',
+       'C':'pre-retrofit prediction with post-retrofit model',
+       'D':'measured post-retrofit data',
+       'E':'post-retrofit prediction with pre-retrofit model',
+       'F':'post-retrofit prediction with pos-tretrofit model',
+       'G':'TMY prediction with pre-retrofit model',
+       'H':'TMY prediction with post-retrofit model'
 
 typical comparisons used by mave:
     Pre-retrofit model performance = A vs B
@@ -21,16 +21,18 @@ typical comparisons used by mave:
 """
 from sklearn import preprocessing
 import numpy as np
+import os
 
 class Dataset(object):
-    DESC ={'A':'Measured preretrofit data',
-           'B':'Preretrofit prediction - preretrofit model',
-           'C':'Preretrofit prediction - postretrofit model',
-           'D':'Measured postretrofit data',
-           'E':'Postretrofit prediction - preretrofit model',
-           'F':'Postretrofit prediction - postretrofit model',
-           'G':'TMY prediction - preretrofit model',
-           'H':'TMY prediction - postretrofit model'}
+    DESC ={
+       'A':'measured pre-retrofit data',
+       'B':'pre-retrofit prediction with pre-retrofit model',
+       'C':'pre-retrofit prediction with post-retrofit model',
+       'D':'measured post-retrofit data',
+       'E':'post-retrofit prediction with pre-retrofit model',
+       'F':'post-retrofit prediction with pos-tretrofit model',
+       'G':'TMY prediction with pre-retrofit model',
+       'H':'TMY prediction with post-retrofit model'}
 
     def __init__(self,
                  dataset_type=None,
@@ -42,7 +44,8 @@ class Dataset(object):
                  feature_names=None,
                  y=None,
                  y_s=None,
-                 y_standardizer=None):
+                 y_standardizer=None,
+                 save=False):
         assert isinstance(dataset_type,str), \
                "dataset_type is not a char: %s"%dataset_type
         assert dataset_type in set(['A','B','C','D','E','F','G','H']), \
@@ -91,20 +94,22 @@ class Dataset(object):
                "different num of feature_names than features"
         self.feature_names = feature_names
         
-    def write_to_csv(self, 
-                     filename=None, 
-                     timestamp_format='%Y-%m-%dT%H%M'):
-        str_date = map(lambda arr: arr.strftime(timestamp_format),
-                       self.dts)
-        if not filename: filename=str(self.DESC[self.dataset_type])+'.csv' 
-        header= 'Datetime,' + ','.join(self.feature_names) + ',Data'
-        data = np.column_stack((np.array(str_date), self.X, self.y,))
-        np.savetxt(filename,
-                   data,
-                   delimiter=',',
-                   header=header,
-                   fmt='%s',
-                   comments='')
+        if save:
+            str_date = map(lambda arr: arr.strftime('%Y-%m-%d%T%H%M'),
+                           self.dts)
+            if not os.path.isdir('data'):
+                os.mkdir('data')
+            os.chdir(os.path.join(os.getcwd(),'data'))
+            filename=str(self.DESC[self.dataset_type])+'.csv' 
+            header= 'Datetime,' + ','.join(self.feature_names) + ',Data'
+            data = np.column_stack((np.array(str_date), self.X, self.y,))
+            np.savetxt(filename,
+                       data,
+                       delimiter=',',
+                       header=header,
+                       fmt='%s',
+                       comments='')
+            os.chdir('..')
 
     def __str__(self):
         return 'Dataset type: %s, %s'\
@@ -127,10 +132,10 @@ if __name__=='__main__':
                   y_s=y,
                   y_standardizer=y_standardizer,
                   dts=dts,
-                  feature_names=feature_names)
+                  feature_names=feature_names,
+                  save=False)
    print test
    print test.X
    print test.X_s
    print test.y
    print test.y_s
-   test.write_to_csv() 
