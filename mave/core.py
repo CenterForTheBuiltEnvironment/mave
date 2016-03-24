@@ -84,7 +84,7 @@ class Preprocessor(object):
                            skip_blank_lines = True,
                            parse_dates = [self.datetime_column_name],
                            infer_datetime_format = True,
-                           dayfirst=True,
+                           dayfirst=dayfirst,
                            skipinitialspace = True,
                            error_bad_lines = False)
         # drop columns with more than 50% nans
@@ -140,11 +140,12 @@ class Preprocessor(object):
                           "also not be performed (even if requested)."))
                 self.use_tmy=False
         log.info("Creating other (non datetime related) input features")
-        data, target_col_ind = self.append_input_features(data,
-                                                          d,
-                                                          outside_db_column_name,
-                                                          target_column_name,
-                                                          datetime_column_name)
+        data, target_col_ind = self.append_input_features(
+            data,
+            d,
+            outside_db_column_name,
+            target_column_name,
+            datetime_column_name)
         log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
             self.clean_data(data, dts, target_col_ind, remove_outliers)
@@ -207,7 +208,7 @@ class Preprocessor(object):
         d = d0
         for s in column_names:
             if s == outside_db_column_name:
-                if np.median(data[s]) > 32.0:
+                if np.nanmedian(data[s]) > 32.0:
                     # almost certainly in crazy ancient units [F]
                     # unless the building is in Antartica
                     log.warn(("The median outside drybulb temperature "
@@ -379,7 +380,6 @@ class Preprocessor(object):
         return feat
 
     def split_dataset(self, test_size):
-        pdb.set_trace()
         if self.X_standardizer is None:
             self.X_standardizer = preprocessing.StandardScaler().fit(self.X)
         self.X_s = self.X_standardizer.transform(self.X)
