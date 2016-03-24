@@ -34,7 +34,8 @@ def main(input_file=None,
          config_file=None,
          changepoint=None,
          **kwargs):
-    log.info("Assessing input file: %s" % args.input_file)
+    log.info(("Assessing input file %s using mave version %s"
+              %(args.input_file,mave.__version__)))
     kws ={}
     config = ConfigParser.ConfigParser(allow_no_value=True)
     if config_file: 
