@@ -6,7 +6,7 @@ import numpy as np
 sys.path.insert(0, './mave/')
 sys.path.insert(0, '../mave/')
 import trainers
-from core import Preprocessor, ModelAggregator, MnV
+from core import Preprocessor, ModelAggregator, mave
 from comparer import Comparer
 import dataset
 import location
@@ -72,11 +72,11 @@ class Test(unittest.TestCase):
         f.close()
 
     def test_mnv(self):
-        mnv = MnV(self.F_1)
+        mnv = mave(self.F_1)
         assert_true(mnv.DvsE.r2 > 0.8)
 
     def test_mnv_with_weather_and_tmy(self):
-        mnv = MnV(self.F_2, use_tmy=True, address='berkeley, ca', ts=0.5)
+        mnv = mave(self.F_2, use_tmy=True, address='berkeley, ca', ts=0.5)
         assert_true(mnv.DvsE.r2 > 0.8)
         assert_true(mnv.GvsH is not None)
 

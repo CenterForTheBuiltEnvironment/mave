@@ -554,7 +554,7 @@ class ModelAggregator(object):
         rv += str(self.error_metrics)
         return rv
 
-class MnV(object):
+class mave(object):
     def __init__(self,
                  input_file_path,
                  save=False,
@@ -738,7 +738,7 @@ if __name__=='__main__':
            ("2013/9/14 23:15", Preprocessor.POST_DATA_TAG),
           ]
     # one example
-    mnv = MnV(input_file=f,
+    mnv = mave(input_file=f,
               changepoints=cps,
               address=None,
               save=True)

@@ -73,7 +73,7 @@ def main(input_file_path=None,
                                 mave.core.Preprocessor.POST_DATA_TAG)]
     log.info('Configuration used for this analysis:\n%s'%\
                 pprint.pformat(kws))
-    mnv = mave.core.MnV(os.path.abspath(input_file_path), **kws)
+    mnv = mave.core.mave(os.path.abspath(input_file_path), **kws)
     log.info("Outputting analysis results:\n %s"%(mnv))
 
 if __name__=='__main__': 
