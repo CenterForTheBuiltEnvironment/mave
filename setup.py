@@ -77,7 +77,7 @@ setup(
         'pandas>=0.18.0',
         'numpy>=1.9.0',
         'python-dateutil>=2.4',
-        'scikit-learn>=0.16.1',
+        'scikit-learn>=0.17',
         'scipy>=0.15.0'
     ],
 

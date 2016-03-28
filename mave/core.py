@@ -54,6 +54,7 @@ class Preprocessor(object):
                  outside_dp_column_name = 'OutsideDewPointTemperature',
                  target_column_name = 'EnergyConsumption',
                  remove_outliers = 'SingleValue',
+                 remove_zeros = True,
                  X_standardizer = None,
                  previous_data_points = 2,
                  column_names=['LocalDateTime','EnergyConsumption'],
@@ -148,7 +149,11 @@ class Preprocessor(object):
             datetime_column_name)
         log.info("Cleaning up data - removing outliers, missing data, etc.")
         self.X, self.y, self.dts = \
-            self.clean_data(data, dts, target_col_ind, remove_outliers)
+            self.clean_data(data, 
+                            dts, 
+                            target_col_ind, 
+                            remove_zeros,
+                            remove_outliers)
         # ensure that the datetimes match the input features
         if (self.X[:,0] != np.array([dt.minute for dt in self.dts])).any() \
             or (self.X[:,1] != np.array([dt.hour for dt in self.dts])).any():
@@ -163,6 +168,7 @@ class Preprocessor(object):
                    data,
                    datetimes,
                    target_col_ind,
+                   remove_zeros=True,
                    remove_outliers='SingleValue'):
         # remove any row with missing data, identified by nan
         keep_inds = ~np.isnan(data).any(axis=1)
@@ -187,6 +193,8 @@ class Preprocessor(object):
                     keep_inds = np.ones(len(y),dtype=bool)
                 else:
                     keep_inds = 0
+            if remove_zeros:
+                keep_inds *= y != 0.0
             # log outlier datetimes and values
             outliers = y[~keep_inds]
             outlier_ts =  map(lambda l: str(l),datetimes[~keep_inds])
